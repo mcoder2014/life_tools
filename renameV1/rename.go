@@ -32,6 +32,7 @@ func GenTargetFilename(filenames []string, policy *RenamePolicy) []*RenameFileIn
 		currentEp += policy.NumInterval
 		// 跳过不存在的集，使序号延续
 		if strings.EqualFold(renameInfo.OldFullName, PlaceholderSkip) {
+			renameInfo.NewFullName = PlaceholderSkip
 			continue
 		}
 
@@ -45,7 +46,14 @@ func GenTargetFilename(filenames []string, policy *RenamePolicy) []*RenameFileIn
 
 	}
 
-	return res
+	var realExecuteList []*RenameFileInfo
+	for _, renameInfo := range res {
+		if !strings.EqualFold(renameInfo.OldFullName, PlaceholderSkip) {
+			realExecuteList = append(realExecuteList, renameInfo)
+		}
+	}
+
+	return realExecuteList
 }
 
 func getUUID() string {
