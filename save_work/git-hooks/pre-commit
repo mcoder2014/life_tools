@@ -1,0 +1,29 @@
+#!/bin/sh
+# 这个脚本的目的是检查 commit 时是否有公司相关的关键词被加入到代码中
+# 比如用到了公司名，引用到了公司的内部代码仓库等。
+# 可以指定一些关键词，通过编写的二进制小程序进行字符串匹配来解决。
+# 复杂度 O(N^2)
+
+# 检查是否是外部仓库
+git remote -v | grep -q -E "github.com|mcoder2014"
+IsExternalGitRepo=$?
+
+if [ $IsExternalGitRepo -eq 1 ]; then
+    echo "This is not an external git repo, no need to check keywords."
+    exit 0
+fi
+
+# 如果是外部仓库，则进行检查
+echo "it is a external git repo, need to check keywords."
+
+git diff | check_keywords -quiet
+Code=$?
+if [ $Code -eq 0 ]; then
+    echo "No keywords found."
+    exit 0
+else
+    # 如果有命中关键词，可以打开输出，再跑一次，看看是哪些地方命中了
+    git diff | check_keywords
+    echo "Keywords found, please check."
+    exit 1
+fi

@@ -1,0 +1,38 @@
+{
+    "configs": [
+        {
+            "postfix": [
+                ".mp4",
+                ".mkv"
+            ],
+            "policy": {
+                "name": "rename plicy.S1E{Ep}.1080p",
+                "num_start": 1,
+                "num_interval": 1,
+                "rename_filename_extension": false,
+                "ep_digit_count": 2
+            },
+            "fileNames": [
+                "rename plicy.S1E01.1080p.mp4",
+                "rename plicy.S1E02.1080p.mp4"
+            ]
+        },
+        {
+            "postfix": [
+                ".mp4",
+                ".mkv"
+            ],
+            "policy": {
+                "name": "rename plicy.S1E{Ep}.1080p",
+                "num_start": 1,
+                "num_interval": 1,
+                "rename_filename_extension": false,
+                "ep_digit_count": 2
+            },
+            "fileNames": [
+                "rename plicy.S1E01.1080p.mp4",
+                "rename plicy.S1E02.1080p.mp4"
+            ]
+        }
+    ]
+}
