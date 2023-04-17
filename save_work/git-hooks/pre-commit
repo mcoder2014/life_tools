@@ -16,14 +16,14 @@ fi
 # 如果是外部仓库，则进行检查
 echo "it is a external git repo, need to check keywords."
 
-git diff | check_keywords -quiet
+git diff HEAD | check_keywords -quiet
 Code=$?
 if [ $Code -eq 0 ]; then
     echo "No keywords found."
     exit 0
 else
     # 如果有命中关键词，可以打开输出，再跑一次，看看是哪些地方命中了
-    git diff | check_keywords
+    git diff HEAD | check_keywords
     echo "Keywords found, please check."
     exit 1
 fi

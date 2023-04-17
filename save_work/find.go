@@ -54,7 +54,9 @@ func splitLines(lines []string, parallel int) [][]string {
 func checkKeywordsContains(lines []string, keywords []string) bool {
 	for _, line := range lines {
 		for _, keyword := range keywords {
-			if strings.Contains(line, keyword) {
+			smallLine := strings.ToLower(line)
+			smallKeyword := strings.ToLower(keyword)
+			if strings.Contains(smallLine, smallKeyword) {
 				logrus.Infof("hit line:%v keyword:%v", line, keyword)
 				return true
 			}

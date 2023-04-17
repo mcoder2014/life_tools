@@ -34,6 +34,7 @@ func main() {
 		logrus.Errorf("Receive contents error: %v", err)
 		return
 	}
+	logrus.Infof("Receive contents length: %v", len(content))
 
 	lines := PrepareContents(string(content))
 	res, _ := ExistKeywords(lines, config.KeyWords, WithParallel(p.Parallel))
