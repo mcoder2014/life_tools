@@ -1,0 +1,8 @@
+{
+  "retry_times": 10,
+  "feishu_custom_robot_url": "",
+  "wechat_robot_url": "",
+  "retry_interval": 100,
+  "max_retry_interval": 300000,
+  "log": "/var/log/retry_exec"
+}
