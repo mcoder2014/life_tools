@@ -4,6 +4,34 @@
 
 ## 哪些工具？
 
+## retry_exec
+
+一个简单的重试工具，可以套在 crontab 等地方，避免程序单次执行失败。
+
+![使用方法](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261022_98943128e13fed75.jpg)
+
+这个程序有什么能力呢？
+1. 配置后使用简单，`retry_exec [your command] [your command args] [your command args] ...` 只要在你的命令执行前加上`retry_exec` 即可。
+2. 帮你重试，重试次数可以自定义；
+3. 重试时逐渐延长间隔时间，每次延长 2 倍，最小间隔时间、最大间隔时间可以自己设置；
+4. 如果程序最终执行失败，可以通过飞书自定义机器人、企业微信自定义机器人等渠道给自己发送一个提醒
+
+![飞书提醒](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261056_eba2bb5ee530ca60.jpg)
+
+![企微提醒](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261058_42e17078663144a3.jpg)
+
+
+**配置**
+
+1. 将 sample/life_tools 下的示例配置文件放在在`/etc/life_tools/retry_exec.json`这里，确保有读权限；
+`sudo chmod a+r /etc/life_tools/retry_exec.json`
+2. 提前创建好日志路径，确保有读写权限 `mkdir -p /var/log/retry_exec`;
+3. 然后就可以正常使用啦；
+
+
+![使用照片](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261103_2f53b1735abdb443.jpg)
+
+
 ## renameV1
 
 命令行批量重命名文件名的工具。我在家里有一台 NAS，安装了 emby，但每次下载动漫时，因为文件名命名不规范，导致 emby 无法识别，修改文件名过于繁琐，

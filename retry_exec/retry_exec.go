@@ -48,18 +48,18 @@ func getOption() *ExecOption {
 		printHelp()
 		os.Exit(1)
 	}
-	fmt.Printf("retry_exec config file: %s", configFile)
+	fmt.Printf("retry_exec config file: %s\n", configFile)
 
 	content, err := os.ReadFile(configFile)
 	if err != nil {
-		fmt.Printf("read config file failed, err=%+v", err)
+		fmt.Printf("read config file failed, err=%+v\n", err)
 		os.Exit(1)
 	}
 
 	var config ExecOption
 	err = json.Unmarshal(content, &config)
 	if err != nil {
-		fmt.Printf("parse config file failed, err=%+v", err)
+		fmt.Printf("parse config file failed, err=%+v\n", err)
 		os.Exit(1)
 	}
 
