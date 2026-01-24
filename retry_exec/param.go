@@ -16,6 +16,13 @@ type ExecOption struct {
 	// 微信自定义机器人回调地址
 	WechatRobotURL string `json:"wechat_robot_url"`
 
+	GotifyConfig *GotifyConfig `json:"gotify_config"`
+
 	// 日志目录
 	Log string `json:"log"`
+}
+
+type GotifyConfig struct {
+	ServerURL string `json:"server_url"`
+	Token     string `json:"token"`
 }
