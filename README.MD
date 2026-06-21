@@ -2,6 +2,42 @@
 
 咸鱼程序员在工作之余（如果有的话）可能用到的小工具。
 
+## 安装
+
+支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`。
+
+```bash
+./install.sh
+```
+
+只安装指定工具：
+
+```bash
+./install.sh --tool retry_exec
+./install.sh --tool renameV1 --tool check_keywords
+./install.sh --tools retry_exec,codex_hook_notify
+```
+
+安装到自定义前缀和配置目录：
+
+```bash
+./install.sh --prefix "$HOME/.local" --config-dir "$HOME/.config/life_tools"
+```
+
+`video_subtitle` 的 Python 依赖默认不会自动安装，需要脚本安装依赖时显式执行：
+
+```bash
+./install.sh --tool video_subtitle --with-python-deps
+```
+
+`dav` 是实验工具，当前源码里有硬编码 BasicAuth，不在默认安装范围内。确实需要时再显式执行：
+
+```bash
+./install.sh --tool dav
+```
+
+完整安装说明和 AI Agent 快速安装步骤见：[docs/install.md](docs/install.md)。
+
 ## 哪些工具？
 
 ## retry_exec
@@ -22,12 +58,13 @@
 ![企微提醒](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261058_42e17078663144a3.jpg)
 
 
-**配置**
+**安装与配置**
 
-1. 将 sample/life_tools 下的示例配置文件放在在`/etc/life_tools/retry_exec.json`这里，确保有读权限；
-`sudo chmod a+r /etc/life_tools/retry_exec.json`
-2. 提前创建好日志路径，确保有读写权限 `mkdir -p /var/log/retry_exec`;
-3. 然后就可以正常使用啦；
+```bash
+./install.sh --tool retry_exec
+```
+
+脚本会安装 `retry_exec`，并在 `/etc/life_tools/retry_exec.json` 不存在时写入示例配置，还会创建 `/var/log/retry_exec`。安装后编辑配置里的提醒机器人地址和日志路径。
 
 
 ![使用照片](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261103_2f53b1735abdb443.jpg)
@@ -38,7 +75,13 @@
 命令行批量重命名文件名的工具。我在家里有一台 NAS，安装了 emby，但每次下载动漫时，因为文件名命名不规范，导致 emby 无法识别，修改文件名过于繁琐，
 所以实现了一个粗糙版本的文件名批量命名工具，根据顺序排序重命名。
 
-构建方式，需要先配置 golang 的运行环境，在工程根路径下执行 `./build.sh` 命令。
+安装方式，需要先配置 Golang 的运行环境，在工程根路径下执行：
+
+```bash
+./install.sh --tool renameV1
+```
+
+只想构建不安装时，可以执行：
 
 ```bash
 ./build.sh
@@ -107,28 +150,22 @@ Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据
 }
 ```
 
-构建：
-
-```bash
-./build.sh
-```
-
 安装：
 
 ```bash
-./install.sh
+./install.sh --tool codex_hook_notify
 ```
 
 默认安装只会构建程序、安装 `/usr/local/bin/codex_hook_notify`、创建配置样例和日志目录，不会修改 Codex 全局 hook。确认配置后，显式执行下面命令安装 `Stop` hook：
 
 ```bash
-./install.sh --install-codex-hook
+./install.sh --tool codex_hook_notify --install-codex-hook
 ```
 
 `PermissionRequest` 在 approval 模式下提醒很多，默认不安装；如果旧版本已经安装过本工具的 `PermissionRequest` hook，默认安装命令会把它移除。确实需要审批提醒时再显式安装：
 
 ```bash
-./install.sh --install-codex-hook --with-permission-request
+./install.sh --tool codex_hook_notify --install-codex-hook --with-permission-request
 ```
 
 日志目录按系统选择：Linux 使用 `/var/log/codex_hook_notify`，macOS 使用 `~/Library/Logs/codex_hook_notify`，其他系统使用 `~/.codex_hook_notify/logs`。发送失败只写 stderr 和日志，程序仍返回 0，不阻塞 Codex。
@@ -139,10 +176,22 @@ Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据
 
 完整使用说明、工作流程、项目结构和排障方法见：[docs/video_subtitle.md](docs/video_subtitle.md)。
 
-安装依赖：
+安装：
+
+```bash
+./install.sh --tool video_subtitle
+```
+
+安装 Python 依赖：
 
 ```bash
 python3 -m pip install -r video_subtitle/requirements.txt
+```
+
+也可以让安装脚本顺手安装 Python 依赖：
+
+```bash
+./install.sh --tool video_subtitle --with-python-deps
 ```
 
 配置文件示例在 `sample/life_tools/video_subtitle.json`，真实配置默认放到 `/etc/life_tools/video_subtitle.json`。
@@ -150,15 +199,15 @@ python3 -m pip install -r video_subtitle/requirements.txt
 生成字幕：
 
 ```bash
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mp4
+video_subtitle --input /path/to/video.mp4
 ```
 
 常用调试命令：
 
 ```bash
 # 只重跑翻译，复用 ASR 和切分缓存
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mp4 --force-translate
+video_subtitle --input /path/to/video.mp4 --force-translate
 
 # 跳过 ASR，强制从 ASR words 的 LLM 切分和翻译开始
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mp4 --force-split --force-translate
+video_subtitle --input /path/to/video.mp4 --force-split --force-translate
 ```

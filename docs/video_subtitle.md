@@ -6,45 +6,51 @@
 
 ## 使用方法
 
+安装工具：
+
+```bash
+./install.sh --tool video_subtitle
+```
+
 安装 Python 依赖：
 
 ```bash
 python3 -m pip install -r video_subtitle/requirements.txt
 ```
 
-准备配置文件：
+也可以让安装脚本顺手安装 Python 依赖：
 
 ```bash
-sudo mkdir -p /etc/life_tools
-sudo cp sample/life_tools/video_subtitle.json /etc/life_tools/video_subtitle.json
-sudo chmod a+r /etc/life_tools/video_subtitle.json
+./install.sh --tool video_subtitle --with-python-deps
 ```
+
+安装脚本会在 `/etc/life_tools/video_subtitle.json` 不存在时写入示例配置。
 
 编辑 `/etc/life_tools/video_subtitle.json`，填入 TOS、ASR、LLM、可选 TMDB 配置。不要把真实密钥写进仓库。
 
 生成字幕：
 
 ```bash
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv
+video_subtitle --input /path/to/video.mkv
 ```
 
 常用参数：
 
 ```bash
 # 跳过交互确认，不在缺少本地 NFO 时发起 TMDB 搜索确认
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv --yes
+video_subtitle --input /path/to/video.mkv --yes
 
 # 强制重新跑 ASR，会重新抽音频、上传 TOS、调用 ASR
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv --force-asr
+video_subtitle --input /path/to/video.mkv --force-asr
 
 # 只强制重新翻译，复用 ASR 和 subtitle_units
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv --force-translate
+video_subtitle --input /path/to/video.mkv --force-translate
 
 # 强制重新做 ASR words 的 LLM 切分，并重新翻译
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv --force-split --force-translate
+video_subtitle --input /path/to/video.mkv --force-split --force-translate
 
 # 指定输出路径
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv --output /path/to/video.zh-CN.srt
+video_subtitle --input /path/to/video.mkv --output /path/to/video.zh-CN.srt
 ```
 
 默认输出路径是视频同目录的 `视频名.zh-CN.srt`。如果文件已存在，会尝试 `视频名.zh-CN_1.srt` 到 `视频名.zh-CN_100.srt`。
@@ -70,7 +76,7 @@ python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv --output /pa
 ```bash
 VIDEO_SUBTITLE_LLM_API_KEY=xxx \
 VIDEO_SUBTITLE_LLM_MODEL=doubao-seed-2-0-lite-260428 \
-python3 video_subtitle/video_subtitle.py --input /path/to/video.mkv
+video_subtitle --input /path/to/video.mkv
 ```
 
 LLM 相关默认策略：

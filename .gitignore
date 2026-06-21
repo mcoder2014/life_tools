@@ -95,3 +95,5 @@ __pycache__/
 .venv/
 venv/
 .env
+# Go test scratch directories
+renameV1/tmp/
