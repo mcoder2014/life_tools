@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
-const maxSummaryLen = 900
+const maxPermissionSummaryLen = 900
+const maxMessageBytes = 3600
 
 type HookEvent struct {
 	HookEventName        string          `json:"hook_event_name"`
@@ -40,28 +43,79 @@ func ParseHookEvent(content []byte) (HookEvent, error) {
 }
 
 func BuildMessage(event HookEvent) string {
+	return BuildMessages(event)[0]
+}
+
+func BuildMessages(event HookEvent) []string {
+	return BuildMessagesWithMachine(event, "")
+}
+
+func BuildMessagesWithMachine(event HookEvent, machineName string) []string {
+	content := summary(event)
+	parts := splitText(content, messageContentLimit(event, machineName))
+	if len(parts) == 0 {
+		parts = []string{"No summary available."}
+	}
+
+	messages := make([]string, 0, len(parts))
+	for i, part := range parts {
+		messages = append(messages, formatMessage(event, machineName, part, i+1, len(parts)))
+	}
+	return messages
+}
+
+func formatMessage(event HookEvent, machineName string, content string, part int, total int) string {
 	var buf bytes.Buffer
-	writeLine(&buf, "Codex Hook Reminder")
+	title := "Codex Hook Reminder"
+	if total > 1 {
+		title = fmt.Sprintf("%s [%d/%d]", title, part, total)
+	}
+	writeLine(&buf, title)
 	writeLine(&buf, "")
 	writeLine(&buf, "Reason: "+valueOrUnknown(event.HookEventName))
+	writeOptionalLine(&buf, "Machine: ", machineName)
 	writeLine(&buf, "Session: "+valueOrUnknown(event.SessionID))
 	writeOptionalLine(&buf, "Turn: ", event.TurnID)
 	writeOptionalLine(&buf, "CWD: ", event.CWD)
 	writeOptionalLine(&buf, "Model: ", event.Model)
 	writeOptionalLine(&buf, "Tool: ", event.ToolName)
 	writeLine(&buf, "Summary:")
-	writeLine(&buf, summary(event))
+	writeLine(&buf, content)
 	return buf.String()
 }
 
 func summary(event HookEvent) string {
 	if event.HookEventName == "PermissionRequest" {
-		return truncate(permissionSummary(event), maxSummaryLen)
+		return truncate(permissionSummary(event), maxPermissionSummaryLen)
+	}
+	if event.HookEventName == "Stop" {
+		return stopSummary(event, codexHome())
 	}
 	if event.LastAssistantMessage != "" {
-		return truncate(event.LastAssistantMessage, maxSummaryLen)
+		return truncate(event.LastAssistantMessage, maxPermissionSummaryLen)
 	}
 	return "No summary available."
+}
+
+func stopSummary(event HookEvent, codexHome string) string {
+	if text := transcriptSummary(event, codexHome); text != "" {
+		return text
+	}
+	if event.LastAssistantMessage != "" {
+		return strings.TrimSpace(event.LastAssistantMessage)
+	}
+	return "No summary available."
+}
+
+func codexHome() string {
+	if value := os.Getenv("CODEX_HOME"); value != "" {
+		return value
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".codex")
 }
 
 func permissionSummary(event HookEvent) string {
@@ -163,4 +217,60 @@ func writeOptionalLine(buf *bytes.Buffer, prefix string, value string) {
 func writeLine(buf *bytes.Buffer, line string) {
 	buf.WriteString(line)
 	buf.WriteByte('\n')
+}
+
+func messageContentLimit(event HookEvent, machineName string) int {
+	header := formatMessage(event, machineName, "", 999, 999)
+	limit := maxMessageBytes - len(header)
+	if limit < 1000 {
+		return 1000
+	}
+	return limit
+}
+
+func splitText(value string, maxBytes int) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if len(value) <= maxBytes {
+		return []string{value}
+	}
+
+	var parts []string
+	for len(value) > 0 {
+		if len(value) <= maxBytes {
+			parts = append(parts, value)
+			break
+		}
+		cut := splitIndex(value, maxBytes)
+		part := strings.TrimSpace(value[:cut])
+		if part != "" {
+			parts = append(parts, part)
+		}
+		value = strings.TrimSpace(value[cut:])
+	}
+	return parts
+}
+
+func splitIndex(value string, maxBytes int) int {
+	lastNewline := -1
+	end := 0
+	for i, r := range value {
+		next := i + len(string(r))
+		if next > maxBytes {
+			break
+		}
+		end = next
+		if r == '\n' {
+			lastNewline = next
+		}
+	}
+	if lastNewline > 0 {
+		return lastNewline
+	}
+	if end > 0 {
+		return end
+	}
+	return maxBytes
 }

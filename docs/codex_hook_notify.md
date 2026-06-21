@@ -1,9 +1,11 @@
 # codex_hook_notify 使用说明
 
-`codex_hook_notify` 用来接收 Codex lifecycle hook 输入，并通过飞书自定义机器人发送提醒。第一版只提醒两个事件：
+`codex_hook_notify` 用来接收 Codex lifecycle hook 输入，并通过飞书自定义机器人发送提醒。当前提醒两个事件：
 
 1. `Stop`：Codex 本轮完成或停止；
 2. `PermissionRequest`：Codex 等待用户批准命令或工具调用。
+
+`Stop` 提醒会优先读取本机 Codex transcript，推送最后一轮 Codex 用户可见输出，也就是 CLI/App 里能看到的 assistant 文本消息。工具调用的原始 stdout/stderr 不会作为 Stop summary 推送。读取失败时，程序回退到 hook 输入里的 `last_assistant_message`。
 
 提醒失败不会阻塞 Codex。程序会向 stderr 输出错误，并写入本地日志。
 
@@ -32,6 +34,7 @@
 
 ```json
 {
+  "machine_name": "home-nas",
   "routes": [
     {
       "events": ["Stop"],
@@ -50,6 +53,39 @@
 ```
 
 一个事件可以配置多个 webhook。没有匹配 route 的事件会被静默跳过。
+
+## 机器名
+
+所有通知都会包含 `Machine:` 字段，用来区分是哪台机器触发了 hook。
+
+机器名取值顺序：
+
+1. 配置文件顶层 `machine_name`，非空时直接使用；
+2. `machine_name` 未配置或为空时，使用当前操作系统 hostname；
+3. hostname 获取失败或为空时，显示 `unknown`。
+
+示例：
+
+```json
+{
+  "machine_name": "home-nas",
+  "routes": []
+}
+```
+
+`machine_name` 只影响通知展示，不参与 route 匹配、日志文件命名或 webhook 选择。
+
+## Stop summary 来源
+
+`Stop` 事件的 hook 输入不一定包含完整输出。为了补全最后一轮内容，程序会按下面顺序取 summary：
+
+1. 从 `CODEX_HOME/sessions` 读取本地 transcript；如果 `CODEX_HOME` 未设置，默认使用 `~/.codex/sessions`；
+2. 先按 session id 匹配 transcript 文件名；匹配不到时，再读取 `session_meta.payload.id` 做一次兜底匹配；
+3. 只提取同一 `turn_id` 下的 assistant `message`，并保留 `commentary` 和 `final_answer` 等用户可见文本；
+4. 找不到 transcript、格式变化或解析失败时，回退到 `last_assistant_message`；
+5. 仍然没有内容时，发送 `No summary available.`。
+
+长 summary 会拆成多条飞书 text 消息，标题带 `Codex Hook Reminder [1/N]` 这样的分片标记。推送内容原样发送，不做敏感信息脱敏；如果最后一轮 Codex 输出里包含路径、配置片段、token 或其他敏感内容，它们会进入配置的飞书群。
 
 ## Linux 安装
 

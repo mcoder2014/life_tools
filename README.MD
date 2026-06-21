@@ -80,15 +80,20 @@ Usage of ./renameV1:
 
 ## codex_hook_notify
 
-Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据事件类型把提醒发送到飞书自定义机器人。第一版只处理：
+Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据事件类型把提醒发送到飞书自定义机器人。当前处理：
 
-1. `Stop`：Codex 本轮完成或停止；
+1. `Stop`：Codex 本轮完成或停止。工具会优先读取本机 `CODEX_HOME/sessions`（默认 `~/.codex/sessions`）里的 transcript，推送最后一轮 Codex 用户可见输出；如果读不到 transcript，就回退到 hook 输入里的 `last_assistant_message`。
 2. `PermissionRequest`：Codex 等待用户批准执行命令或工具。
+
+所有通知都会带 `Machine:` 字段。配置文件顶层 `machine_name` 非空时优先使用它；未配置或为空时使用操作系统 hostname；仍取不到时显示 `unknown`。
+
+`Stop` 内容较长时会拆成多条飞书 text 消息发送。推送内容按 Codex 输出原样发送，不做敏感信息脱敏；不要把真实 webhook 配到不可信群里。
 
 配置文件默认路径：`/etc/life_tools/codex_hook_notify.json`。示例配置在 `sample/life_tools/codex_hook_notify.json`。完整使用说明见 `docs/codex_hook_notify.md`。
 
 ```json
 {
+  "machine_name": "home-nas",
   "routes": [
     {
       "events": ["Stop"],

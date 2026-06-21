@@ -7,11 +7,12 @@ import (
 )
 
 type RunOption struct {
-	Config Config
-	Input  io.Reader
-	Stderr io.Writer
-	Sender Sender
-	Logger Logger
+	Config   Config
+	Input    io.Reader
+	Stderr   io.Writer
+	Sender   Sender
+	Logger   Logger
+	Hostname HostnameFunc
 }
 
 func Run(ctx context.Context, opt RunOption) error {
@@ -32,17 +33,25 @@ func Run(ctx context.Context, opt RunOption) error {
 		return nil
 	}
 
-	text := BuildMessage(event)
-	sent := 0
+	messages := BuildMessagesWithMachine(event, ResolveMachineName(opt.Config, opt.Hostname))
+	sentMessages := 0
+	sentWebhooks := 0
 	for _, url := range urls {
-		if err := opt.Sender.Send(ctx, url, text); err != nil {
-			report(opt, event.SessionID, "send feishu message failed: %v", err)
-			continue
+		urlSent := 0
+		for _, text := range messages {
+			if err := opt.Sender.Send(ctx, url, text); err != nil {
+				report(opt, event.SessionID, "send feishu message failed: %v", err)
+				continue
+			}
+			urlSent++
 		}
-		sent++
+		if urlSent > 0 {
+			sentWebhooks++
+			sentMessages += urlSent
+		}
 	}
-	if sent > 0 && opt.Logger != nil {
-		if err := opt.Logger.Log(event.SessionID, fmt.Sprintf("event %s sent to %d feishu webhook(s)", event.HookEventName, sent)); err != nil && opt.Stderr != nil {
+	if sentMessages > 0 && opt.Logger != nil {
+		if err := opt.Logger.Log(event.SessionID, fmt.Sprintf("event %s sent to %d feishu webhook(s), %d message(s)", event.HookEventName, sentWebhooks, sentMessages)); err != nil && opt.Stderr != nil {
 			fmt.Fprintf(opt.Stderr, "codex_hook_notify: write log failed: %v\n", err)
 		}
 	}

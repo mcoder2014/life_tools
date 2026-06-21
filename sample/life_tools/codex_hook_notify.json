@@ -1,4 +1,5 @@
 {
+  "machine_name": "",
   "routes": [
     {
       "events": ["Stop"],
