@@ -19,15 +19,23 @@ func TestListDirFiles(t *testing.T) {
 }
 
 func TestRenameFileNameWithSpace(t *testing.T) {
+	const tmpDir = "./tmp"
 
-	f, err := os.Create("./testData/file name with space.mkv")
-	require.NoError(t, err)
-	f.Write([]byte("test"))
-	err = f.Close()
-	require.NoError(t, err)
+	require.NoError(t, os.RemoveAll(tmpDir))
+	require.NoError(t, os.MkdirAll(tmpDir, 0755))
+	t.Cleanup(func() {
+		require.NoError(t, os.RemoveAll(tmpDir))
+	})
 
-	err = os.Rename("./testData/file name with space.mkv", "./testData/file_name_with_space.mkv")
+	oldName := tmpDir + "/file name with space.mkv"
+	newName := tmpDir + "/file_name_with_space.mkv"
+	f, err := os.Create(oldName)
 	require.NoError(t, err)
-	err = os.Remove("./testData/file_name_with_space.mkv")
+	_, err = f.Write([]byte("test"))
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	require.NoError(t, os.Rename(oldName, newName))
+	_, err = os.Stat(newName)
 	require.NoError(t, err)
 }
