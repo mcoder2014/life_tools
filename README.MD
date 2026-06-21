@@ -84,7 +84,7 @@ Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据
 1. `Stop`：Codex 本轮完成或停止；
 2. `PermissionRequest`：Codex 等待用户批准执行命令或工具。
 
-配置文件默认路径：`/etc/life_tools/codex_hook_notify.json`。示例配置在 `sample/life_tools/codex_hook_notify.json`。
+配置文件默认路径：`/etc/life_tools/codex_hook_notify.json`。示例配置在 `sample/life_tools/codex_hook_notify.json`。完整使用说明见 `docs/codex_hook_notify.md`。
 
 ```json
 {
@@ -119,4 +119,4 @@ Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据
 ./install.sh --install-codex-hook
 ```
 
-日志固定写到 `/var/log/codex_hook_notify/YYYY-MM-DD_<session_id>.log`。`install.sh` 会把日志目录所有者设置为当前用户。发送失败只写 stderr 和日志，程序仍返回 0，不阻塞 Codex。
+日志目录按系统选择：Linux 使用 `/var/log/codex_hook_notify`，macOS 使用 `~/Library/Logs/codex_hook_notify`，其他系统使用 `~/.codex_hook_notify/logs`。发送失败只写 stderr 和日志，程序仍返回 0，不阻塞 Codex。

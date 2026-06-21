@@ -8,7 +8,18 @@ INSTALL_BIN="/usr/local/bin/$BIN_NAME"
 CONFIG_DIR="/etc/life_tools"
 CONFIG_FILE="$CONFIG_DIR/codex_hook_notify.json"
 SAMPLE_CONFIG="$ROOT_DIR/sample/life_tools/codex_hook_notify.json"
-LOG_DIR="/var/log/codex_hook_notify"
+OS_NAME="$(uname -s)"
+case "$OS_NAME" in
+  Linux)
+    LOG_DIR="/var/log/codex_hook_notify"
+    ;;
+  Darwin)
+    LOG_DIR="$HOME/Library/Logs/codex_hook_notify"
+    ;;
+  *)
+    LOG_DIR="$HOME/.codex_hook_notify/logs"
+    ;;
+esac
 HOOKS_FILE="$HOME/.codex/hooks.json"
 INSTALL_CODEX_HOOK=0
 
@@ -37,9 +48,15 @@ mkdir -p "$ROOT_DIR/output"
 go build -v -o "$OUTPUT_BIN" "$ROOT_DIR/codex_hook_notify/..."
 
 sudo install -m 0755 "$OUTPUT_BIN" "$INSTALL_BIN"
-sudo mkdir -p "$CONFIG_DIR" "$LOG_DIR"
-sudo chown "$(id -u):$(id -g)" "$LOG_DIR"
-sudo chmod 0755 "$LOG_DIR"
+sudo mkdir -p "$CONFIG_DIR"
+if [ "$OS_NAME" = "Linux" ]; then
+  sudo mkdir -p "$LOG_DIR"
+  sudo chown "$(id -u):$(id -g)" "$LOG_DIR"
+  sudo chmod 0755 "$LOG_DIR"
+else
+  mkdir -p "$LOG_DIR"
+  chmod 0755 "$LOG_DIR"
+fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
   sudo install -m 0644 "$SAMPLE_CONFIG" "$CONFIG_FILE"

@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
-
-const logDir = "/var/log/codex_hook_notify"
 
 type Logger interface {
 	Log(sessionID string, message string) error
@@ -30,6 +29,7 @@ func (l FileLogger) Log(sessionID string, message string) error {
 		now = l.Now()
 	}
 
+	logDir := DefaultLogDir()
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return err
 	}
@@ -37,6 +37,24 @@ func (l FileLogger) Log(sessionID string, message string) error {
 	path := filepath.Join(logDir, LogFileName(now.Format("2006-01-02"), sessionID))
 	line := fmt.Sprintf("%s %s\n", now.Format(time.RFC3339), message)
 	return appendFile(path, line)
+}
+
+func DefaultLogDir() string {
+	home, _ := os.UserHomeDir()
+	return defaultLogDir(runtime.GOOS, home)
+}
+
+func defaultLogDir(goos string, home string) string {
+	if goos == "linux" {
+		return "/var/log/codex_hook_notify"
+	}
+	if home == "" {
+		return filepath.Join(".", ".codex_hook_notify", "logs")
+	}
+	if goos == "darwin" {
+		return filepath.Join(home, "Library", "Logs", "codex_hook_notify")
+	}
+	return filepath.Join(home, ".codex_hook_notify", "logs")
 }
 
 func LogFileName(date string, sessionID string) string {
