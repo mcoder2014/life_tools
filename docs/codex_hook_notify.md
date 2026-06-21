@@ -92,7 +92,7 @@
 在仓库根目录执行：
 
 ```bash
-./install.sh
+./install.sh --tool codex_hook_notify
 ```
 
 脚本会做这些事：
@@ -105,13 +105,13 @@
 填写真实 webhook 后，安装全局 Codex hook。默认只安装 `Stop`，也就是 Codex 完成或停止时提醒：
 
 ```bash
-./install.sh --install-codex-hook
+./install.sh --tool codex_hook_notify --install-codex-hook
 ```
 
 `PermissionRequest` 在 approval 模式下会非常频繁，默认不安装。默认安装命令也会移除本工具旧版本安装过的 `PermissionRequest` hook。如果你明确需要等待审批提醒，再执行：
 
 ```bash
-./install.sh --install-codex-hook --with-permission-request
+./install.sh --tool codex_hook_notify --install-codex-hook --with-permission-request
 ```
 
 ## macOS 安装
@@ -119,7 +119,7 @@
 在仓库根目录执行：
 
 ```bash
-./install.sh
+./install.sh --tool codex_hook_notify
 ```
 
 脚本会把程序安装到 `/usr/local/bin/codex_hook_notify`，配置仍放在 `/etc/life_tools/codex_hook_notify.json`。日志目录会创建在：
@@ -131,13 +131,13 @@
 填写真实 webhook 后，安装全局 Codex hook。默认只安装 `Stop`，也就是 Codex 完成或停止时提醒：
 
 ```bash
-./install.sh --install-codex-hook
+./install.sh --tool codex_hook_notify --install-codex-hook
 ```
 
 `PermissionRequest` 在 approval 模式下会非常频繁，默认不安装。默认安装命令也会移除本工具旧版本安装过的 `PermissionRequest` hook。如果你明确需要等待审批提醒，再执行：
 
 ```bash
-./install.sh --install-codex-hook --with-permission-request
+./install.sh --tool codex_hook_notify --install-codex-hook --with-permission-request
 ```
 
 macOS 上如果 `/usr/local/bin` 或 `/etc/life_tools` 需要管理员权限，脚本会通过 `sudo` 请求权限。
