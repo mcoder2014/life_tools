@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "events": ["Stop"],
+      "feishu_custom_robot_urls": [
+        ""
+      ]
+    },
+    {
+      "events": ["PermissionRequest"],
+      "feishu_custom_robot_urls": [
+        ""
+      ]
+    }
+  ]
+}

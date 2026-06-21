@@ -76,3 +76,53 @@ Usage of ./renameV1:
 
 1. 检测敏感词；
 2. 检测正则表达式；
+
+## codex_hook_notify
+
+Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据事件类型把提醒发送到飞书自定义机器人。第一版只处理：
+
+1. `Stop`：Codex 本轮完成或停止；
+2. `PermissionRequest`：Codex 等待用户批准执行命令或工具。
+
+配置文件默认路径：`/etc/life_tools/codex_hook_notify.json`。示例配置在 `sample/life_tools/codex_hook_notify.json`。完整使用说明见 `docs/codex_hook_notify.md`。
+
+```json
+{
+  "routes": [
+    {
+      "events": ["Stop"],
+      "feishu_custom_robot_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/xxx"]
+    },
+    {
+      "events": ["PermissionRequest"],
+      "feishu_custom_robot_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/yyy"]
+    }
+  ]
+}
+```
+
+构建：
+
+```bash
+./build.sh
+```
+
+安装：
+
+```bash
+./install.sh
+```
+
+默认安装只会构建程序、安装 `/usr/local/bin/codex_hook_notify`、创建配置样例和日志目录，不会修改 Codex 全局 hook。确认配置后，显式执行下面命令安装 `Stop` hook：
+
+```bash
+./install.sh --install-codex-hook
+```
+
+`PermissionRequest` 在 approval 模式下提醒很多，默认不安装；如果旧版本已经安装过本工具的 `PermissionRequest` hook，默认安装命令会把它移除。确实需要审批提醒时再显式安装：
+
+```bash
+./install.sh --install-codex-hook --with-permission-request
+```
+
+日志目录按系统选择：Linux 使用 `/var/log/codex_hook_notify`，macOS 使用 `~/Library/Logs/codex_hook_notify`，其他系统使用 `~/.codex_hook_notify/logs`。发送失败只写 stderr 和日志，程序仍返回 0，不阻塞 Codex。
