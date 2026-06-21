@@ -113,10 +113,16 @@ Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据
 ./install.sh
 ```
 
-默认安装只会构建程序、安装 `/usr/local/bin/codex_hook_notify`、创建配置样例和日志目录，不会修改 Codex 全局 hook。确认配置后，显式执行：
+默认安装只会构建程序、安装 `/usr/local/bin/codex_hook_notify`、创建配置样例和日志目录，不会修改 Codex 全局 hook。确认配置后，显式执行下面命令安装 `Stop` hook：
 
 ```bash
 ./install.sh --install-codex-hook
+```
+
+`PermissionRequest` 在 approval 模式下提醒很多，默认不安装；如果旧版本已经安装过本工具的 `PermissionRequest` hook，默认安装命令会把它移除。确实需要审批提醒时再显式安装：
+
+```bash
+./install.sh --install-codex-hook --with-permission-request
 ```
 
 日志目录按系统选择：Linux 使用 `/var/log/codex_hook_notify`，macOS 使用 `~/Library/Logs/codex_hook_notify`，其他系统使用 `~/.codex_hook_notify/logs`。发送失败只写 stderr 和日志，程序仍返回 0，不阻塞 Codex。

@@ -22,14 +22,18 @@ case "$OS_NAME" in
 esac
 HOOKS_FILE="$HOME/.codex/hooks.json"
 INSTALL_CODEX_HOOK=0
+WITH_PERMISSION_REQUEST=0
 
 for arg in "$@"; do
   case "$arg" in
     --install-codex-hook)
       INSTALL_CODEX_HOOK=1
       ;;
+    --with-permission-request)
+      WITH_PERMISSION_REQUEST=1
+      ;;
     -h|--help)
-      echo "Usage: ./install.sh [--install-codex-hook]"
+      echo "Usage: ./install.sh [--install-codex-hook] [--with-permission-request]"
       exit 0
       ;;
     *)
@@ -66,7 +70,7 @@ else
 fi
 
 if [ "$INSTALL_CODEX_HOOK" -eq 1 ]; then
-  python3 - "$HOOKS_FILE" "$INSTALL_BIN" "$CONFIG_FILE" <<'PYCODE'
+  python3 - "$HOOKS_FILE" "$INSTALL_BIN" "$CONFIG_FILE" "$WITH_PERMISSION_REQUEST" <<'PYCODE'
 import json
 import sys
 from pathlib import Path
@@ -74,8 +78,8 @@ from pathlib import Path
 hooks_file = Path(sys.argv[1])
 bin_path = sys.argv[2]
 config_file = sys.argv[3]
+with_permission_request = sys.argv[4] == "1"
 command = f"{bin_path} --config {config_file}"
-required_events = ["Stop", "PermissionRequest"]
 entry = {
     "type": "command",
     "command": command,
@@ -92,16 +96,36 @@ else:
 
 hooks = data.setdefault("hooks", {})
 changed = False
-for event in required_events:
+
+
+def ensure_hook(event):
+    global changed
     groups = hooks.setdefault(event, [])
     if not groups:
         groups.append({"hooks": []})
         changed = True
     commands = [hook.get("command") for group in groups for hook in group.get("hooks", [])]
     if command in commands:
-        continue
+        return
     groups[0].setdefault("hooks", []).append(dict(entry))
     changed = True
+
+
+def remove_hook(event):
+    global changed
+    for group in hooks.get(event, []):
+        old_hooks = group.get("hooks", [])
+        new_hooks = [hook for hook in old_hooks if hook.get("command") != command]
+        if len(new_hooks) != len(old_hooks):
+            group["hooks"] = new_hooks
+            changed = True
+
+
+ensure_hook("Stop")
+if with_permission_request:
+    ensure_hook("PermissionRequest")
+else:
+    remove_hook("PermissionRequest")
 
 if changed:
     hooks_file.parent.mkdir(parents=True, exist_ok=True)
@@ -116,6 +140,7 @@ codex_hook_notify installed to $INSTALL_BIN
 
 Next steps:
 1. Edit $CONFIG_FILE and fill feishu_custom_robot_urls.
-2. Run ./install.sh --install-codex-hook to update $HOOKS_FILE.
+2. Run ./install.sh --install-codex-hook to install the Stop hook.
+3. Optional: run ./install.sh --install-codex-hook --with-permission-request to also install PermissionRequest reminders.
 EOF
 fi

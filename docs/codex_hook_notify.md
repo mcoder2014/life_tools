@@ -66,10 +66,16 @@
 3. 如果 `/etc/life_tools/codex_hook_notify.json` 不存在，安装示例配置；
 4. 创建 `/var/log/codex_hook_notify`，并把目录 owner 设置为当前用户。
 
-填写真实 webhook 后，安装全局 Codex hook：
+填写真实 webhook 后，安装全局 Codex hook。默认只安装 `Stop`，也就是 Codex 完成或停止时提醒：
 
 ```bash
 ./install.sh --install-codex-hook
+```
+
+`PermissionRequest` 在 approval 模式下会非常频繁，默认不安装。默认安装命令也会移除本工具旧版本安装过的 `PermissionRequest` hook。如果你明确需要等待审批提醒，再执行：
+
+```bash
+./install.sh --install-codex-hook --with-permission-request
 ```
 
 ## macOS 安装
@@ -86,10 +92,16 @@
 ~/Library/Logs/codex_hook_notify
 ```
 
-填写真实 webhook 后，安装全局 Codex hook：
+填写真实 webhook 后，安装全局 Codex hook。默认只安装 `Stop`，也就是 Codex 完成或停止时提醒：
 
 ```bash
 ./install.sh --install-codex-hook
+```
+
+`PermissionRequest` 在 approval 模式下会非常频繁，默认不安装。默认安装命令也会移除本工具旧版本安装过的 `PermissionRequest` hook。如果你明确需要等待审批提醒，再执行：
+
+```bash
+./install.sh --install-codex-hook --with-permission-request
 ```
 
 macOS 上如果 `/usr/local/bin` 或 `/etc/life_tools` 需要管理员权限，脚本会通过 `sudo` 请求权限。
@@ -126,6 +138,8 @@ ls -lt ~/Library/Logs/codex_hook_notify
 
 最后启动一次 Codex，让它自然触发 `Stop`。如果 Codex 第一次提示是否信任这个 hook，确认信任后再测一次。
 
+如果你没有使用 `--with-permission-request`，手工 `PermissionRequest` 测试可以验证程序本身能发送，但正常 Codex approval 不会触发飞书提醒。
+
 ## 卸载 hook
 
 如果只想停用提醒，编辑：
@@ -134,7 +148,7 @@ ls -lt ~/Library/Logs/codex_hook_notify
 ~/.codex/hooks.json
 ```
 
-删除 `Stop` 和 `PermissionRequest` 中命令为下面内容的 hook：
+删除 `Stop` 和可选 `PermissionRequest` 中命令为下面内容的 hook：
 
 ```bash
 /usr/local/bin/codex_hook_notify --config /etc/life_tools/codex_hook_notify.json
