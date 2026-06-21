@@ -15,6 +15,8 @@
 - `renameV1/`：批量重命名命令行工具，入口是 `package main`。
 - `save_work/`：敏感词检测工具，构建产物名是 `check_keywords`。
 - `webdav/`：WebDAV 可执行入口，当前是实验性质实现。
+- `video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/video_subtitle.md`。
+- `docs/`：项目文档，`video_subtitle` 的使用和维护说明在 `docs/video_subtitle.md`。
 - `sample/life_tools/`：示例配置文件。
 - `renameV1/testData/`：`renameV1` 的测试数据，包含媒体文件、nfo、bif 等样例。
 - `output/`：构建产物目录，不要把它当源码维护。
@@ -84,6 +86,18 @@ go test ./webdav
 - git hook 示例在 `save_work/git-hooks/pre-commit`。
 
 不要把真实公司域名、内部仓库、密钥或敏感词写进仓库。示例只能保留假数据或公开无害字符串。
+
+## `video_subtitle` 规则
+
+`video_subtitle` 是 Python 工具，不走 Go 构建入口。完整使用方式、缓存结构和排障流程见 `docs/video_subtitle.md`。
+
+- 真实配置默认在 `/etc/life_tools/video_subtitle.json`，示例配置在 `sample/life_tools/video_subtitle.json`。
+- 不要把 TOS、ASR、LLM、TMDB 的真实 key、token、预签名 URL 写入仓库或日志。
+- 修改 ASR、split、translation、缓存、CLI 参数时，同步更新 `docs/video_subtitle.md` 和 README 中的简要入口。
+- 涉及 LLM 输出结构时，必须保留本地 JSON 校验和失败响应落盘，不能只信 prompt。
+- 修改 split 逻辑时，优先用已有 `utterances.json` 或离线 fake LLM 测试，不要直接从真实视频重新烧 ASR。
+- 交付前至少运行：`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest video_subtitle/video_subtitle_test.py`。
+- 如果改了 Python 文件，还要运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile video_subtitle/video_subtitle.py video_subtitle/video_subtitle_test.py video_subtitle/lib/*.py`。
 
 ## `webdav` 规则
 

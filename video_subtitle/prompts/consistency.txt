@@ -1,0 +1,10 @@
+请评估 ASR 文本和内嵌字幕文本是否表达同一段台词。
+
+样本 JSON：
+$items_json
+
+要求：
+- 允许不同语言或自然翻译表达。
+- 如果明显不是同一台词、错位、遗漏大量信息，则 consistent=false。
+- 输出 JSON 对象：{"items":[{"id":1,"consistent":true,"reason":"简短原因"}]}。
+- 只输出 JSON，不输出 Markdown。

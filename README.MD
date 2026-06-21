@@ -126,3 +126,33 @@ Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据
 ```
 
 日志目录按系统选择：Linux 使用 `/var/log/codex_hook_notify`，macOS 使用 `~/Library/Logs/codex_hook_notify`，其他系统使用 `~/.codex_hook_notify/logs`。发送失败只写 stderr 和日志，程序仍返回 0，不阻塞 Codex。
+
+## video_subtitle
+
+给单个视频生成简体中文字幕的 Python 工具。它会抽取音频、调用火山 ASR、用 LLM 做字幕切分和翻译，并在视频同目录输出 `.zh-CN.srt`。
+
+完整使用说明、工作流程、项目结构和排障方法见：[docs/video_subtitle.md](docs/video_subtitle.md)。
+
+安装依赖：
+
+```bash
+python3 -m pip install -r video_subtitle/requirements.txt
+```
+
+配置文件示例在 `sample/life_tools/video_subtitle.json`，真实配置默认放到 `/etc/life_tools/video_subtitle.json`。
+
+生成字幕：
+
+```bash
+python3 video_subtitle/video_subtitle.py --input /path/to/video.mp4
+```
+
+常用调试命令：
+
+```bash
+# 只重跑翻译，复用 ASR 和切分缓存
+python3 video_subtitle/video_subtitle.py --input /path/to/video.mp4 --force-translate
+
+# 跳过 ASR，强制从 ASR words 的 LLM 切分和翻译开始
+python3 video_subtitle/video_subtitle.py --input /path/to/video.mp4 --force-split --force-translate
+```

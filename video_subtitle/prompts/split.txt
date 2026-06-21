@@ -1,0 +1,10 @@
+待切分 ASR JSON：
+$items_json
+
+目标：
+- 将过长或多句粘连的 ASR 结果切成更适合字幕展示的片段。
+- 单条字幕目标展示时长约 $target_min_seconds 到 $target_max_seconds 秒。
+- 尽量保持当前这句话的完整性，不要把相距较远的两句话粘在同一条里。
+- 输出 JSON 对象：{"items":[{"source_id":1,"word_start":0,"word_end":3,"text":"原文片段"}]}。
+- word_start 和 word_end 是输入 words 数组的闭区间索引。
+- 不要输出时间轴，时间轴由程序根据 words 计算。
