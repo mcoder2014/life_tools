@@ -9,7 +9,7 @@ HOOKS_FILE="$HOME/.codex/hooks.json"
 OS_NAME="$(uname -s)"
 
 STABLE_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle)
-ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle dav)
+ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle)
 REQUESTED_TOOLS=()
 SELECTED_TOOLS=()
 INSTALL_ALL=0
@@ -26,7 +26,7 @@ Options:
   --tool NAME                  Install only this tool. Can be repeated.
   --tool=NAME                  Same as --tool NAME.
   --tools a,b                  Install a comma-separated tool list.
-  --all                        Install all tools, including experimental dav.
+  --all                        Install all tools.
   --prefix DIR                 Install executables under DIR/bin. Default: /usr/local.
   --config-dir DIR             Install sample configs under DIR. Default: /etc/life_tools.
   --with-python-deps           Run python3 -m pip install for video_subtitle dependencies.
@@ -38,7 +38,7 @@ Stable tools installed by default:
   renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle
 
 All tool names:
-  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, dav
+  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle
 
 Examples:
   ./install.sh
@@ -170,9 +170,6 @@ normalize_tool_name() {
       ;;
     video|video-subtitle|video_subtitle)
       echo "video_subtitle"
-      ;;
-    dav|webdav)
-      echo "dav"
       ;;
     *)
       return 1
@@ -308,7 +305,7 @@ needs_go() {
   local tool
   for tool in "${SELECTED_TOOLS[@]}"; do
     case "$tool" in
-      renameV1|check_keywords|retry_exec|codex_hook_notify|dav)
+      renameV1|check_keywords|retry_exec|codex_hook_notify)
         return 0
         ;;
     esac
@@ -501,14 +498,6 @@ EOF
   fi
 }
 
-install_dav() {
-  cat <<'EOF'
-warning: dav is experimental and has hard-coded BasicAuth in current source.
-Do not expose it to an untrusted network without reviewing webdav/main.go.
-EOF
-  install_go_tool dav dav ./webdav/...
-}
-
 install_selected_tool() {
   case "$1" in
     renameV1)
@@ -525,9 +514,6 @@ install_selected_tool() {
       ;;
     video_subtitle)
       install_video_subtitle
-      ;;
-    dav)
-      install_dav
       ;;
     *)
       echo "unsupported tool: $1" >&2

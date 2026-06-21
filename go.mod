@@ -8,7 +8,6 @@ require (
 	github.com/mcoder2014/go_utils v0.0.6
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.1
-	golang.org/x/net v0.9.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/term v0.7.0
 )
