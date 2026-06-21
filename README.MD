@@ -76,3 +76,47 @@ Usage of ./renameV1:
 
 1. 检测敏感词；
 2. 检测正则表达式；
+
+## codex_hook_notify
+
+Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据事件类型把提醒发送到飞书自定义机器人。第一版只处理：
+
+1. `Stop`：Codex 本轮完成或停止；
+2. `PermissionRequest`：Codex 等待用户批准执行命令或工具。
+
+配置文件默认路径：`/etc/life_tools/codex_hook_notify.json`。示例配置在 `sample/life_tools/codex_hook_notify.json`。
+
+```json
+{
+  "routes": [
+    {
+      "events": ["Stop"],
+      "feishu_custom_robot_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/xxx"]
+    },
+    {
+      "events": ["PermissionRequest"],
+      "feishu_custom_robot_urls": ["https://open.feishu.cn/open-apis/bot/v2/hook/yyy"]
+    }
+  ]
+}
+```
+
+构建：
+
+```bash
+./build.sh
+```
+
+安装：
+
+```bash
+./install.sh
+```
+
+默认安装只会构建程序、安装 `/usr/local/bin/codex_hook_notify`、创建配置样例和日志目录，不会修改 Codex 全局 hook。确认配置后，显式执行：
+
+```bash
+./install.sh --install-codex-hook
+```
+
+日志固定写到 `/var/log/codex_hook_notify/YYYY-MM-DD_<session_id>.log`。`install.sh` 会把日志目录所有者设置为当前用户。发送失败只写 stderr 和日志，程序仍返回 0，不阻塞 Codex。
