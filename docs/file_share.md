@@ -79,6 +79,7 @@ file_share -config /etc/life_tools/file_share.json
 - 文件名默认使用浏览器原生方式打开，旁边提供下载链接。
 - 目录提供 zip 下载。
 - HTTP 服务只支持 `GET` 和 `HEAD`。
+- 访问日志输出到 stdout，格式包含 `client_ip`、请求方法、路径、状态码和耗时。
 
 ## 安全边界
 

@@ -174,6 +174,25 @@ func TestServerDownloadsDirectoryZip(t *testing.T) {
 	require.Equal(t, "linked", files["linked-dir/linked.txt"])
 }
 
+func TestServerLogsClientIP(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "note.txt")
+	writeTestFile(t, file, "hello")
+	entries := mustBuildEntries(t, ConfigEntry{Path: file})
+	var log bytes.Buffer
+	server := NewServer(entries, &log)
+	req := httptest.NewRequest(http.MethodGet, "/raw/0/", nil)
+	req.RemoteAddr = "192.0.2.10:54321"
+	recorder := httptest.NewRecorder()
+
+	server.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	line := log.String()
+	require.Contains(t, line, "client_ip=192.0.2.10")
+	require.Contains(t, line, "GET /raw/0/ 200")
+}
+
 func TestServerRejectsUnsupportedMethodsAndUnknownEntries(t *testing.T) {
 	root := t.TempDir()
 	file := filepath.Join(root, "note.txt")

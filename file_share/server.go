@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -104,7 +105,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 	defer func() {
-		fmt.Fprintf(s.logger, "%s %s %d %s\n", r.Method, r.URL.Path, status, time.Since(start).Truncate(time.Millisecond))
+		fmt.Fprintf(s.logger, "client_ip=%s %s %s %d %s\n", clientIP(r), r.Method, r.URL.Path, status, time.Since(start).Truncate(time.Millisecond))
 	}()
 
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -116,6 +117,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.route(recorder, r, r.URL.EscapedPath())
 	status = recorder.status
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	if r.RemoteAddr == "" {
+		return "unknown"
+	}
+	return r.RemoteAddr
 }
 
 func (s *Server) route(w http.ResponseWriter, r *http.Request, requestPath string) {
