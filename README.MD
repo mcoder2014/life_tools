@@ -4,7 +4,7 @@
 
 ## 安装
 
-支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`。
+支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`、`file_share`。
 
 ```bash
 ./install.sh
@@ -16,6 +16,7 @@
 ./install.sh --tool retry_exec
 ./install.sh --tool renameV1 --tool check_keywords
 ./install.sh --tools retry_exec,codex_hook_notify
+./install.sh --tool file_share
 ```
 
 安装到自定义前缀和配置目录：
@@ -28,12 +29,6 @@
 
 ```bash
 ./install.sh --tool video_subtitle --with-python-deps
-```
-
-`dav` 是实验工具，当前源码里有硬编码 BasicAuth，不在默认安装范围内。确实需要时再显式执行：
-
-```bash
-./install.sh --tool dav
 ```
 
 完整安装说明和 AI Agent 快速安装步骤见：[docs/install.md](docs/install.md)。
@@ -120,6 +115,32 @@ Usage of ./renameV1:
 
 1. 检测敏感词；
 2. 检测正则表达式；
+
+
+## file_share
+
+`file_share` 是一个临时 HTTP 文件分享工具。传入一个或多个文件、目录即可启动只读 HTTP 服务，浏览器可以查看共享范围内的目录列表、打开文件、下载文件，也可以把目录打包成 zip 下载。
+
+安装：
+
+```bash
+./install.sh --tool file_share
+```
+
+简单分享：
+
+```bash
+file_share /path/to/file-or-dir
+file_share -addr 127.0.0.1:9000 /path/a /path/b
+```
+
+通过 JSON 指定共享范围：
+
+```bash
+file_share -config /etc/life_tools/file_share.json
+```
+
+配置示例在 `sample/life_tools/file_share.json`，完整说明见：[docs/file_share.md](docs/file_share.md)。这个工具默认无认证、显示隐藏文件、跟随符号链接，不要把含敏感文件或敏感链接的目录暴露到不可信网络。
 
 ## codex_hook_notify
 

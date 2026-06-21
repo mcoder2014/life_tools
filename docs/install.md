@@ -22,9 +22,7 @@
 | `retry_exec` | `retry_exec` | Go | 是 | `/etc/life_tools/retry_exec.json` |
 | `codex_hook_notify` | `codex_hook_notify` | Go | 是 | `/etc/life_tools/codex_hook_notify.json` |
 | `video_subtitle` | `video_subtitle` | Python | 是 | `/etc/life_tools/video_subtitle.json` |
-| `dav` | `dav` | Go | 否 | 无 |
-
-`dav` 当前是实验工具，源码里有硬编码 BasicAuth，不要默认安装到用户机器。确实要装时使用 `--tool dav` 或 `--all`。
+| `file_share` | `file_share` | Go | 是 | `/etc/life_tools/file_share.json` |
 
 ## 快速安装
 
@@ -40,6 +38,7 @@
 ./install.sh --tool retry_exec
 ./install.sh --tool renameV1 --tool check_keywords
 ./install.sh --tools retry_exec,codex_hook_notify
+./install.sh --tool file_share
 ```
 
 安装到自定义前缀：
@@ -55,6 +54,31 @@
 ```
 
 这只改变安装脚本写入示例配置的位置。部分工具源码里的默认配置路径仍是 `/etc/life_tools`，运行时需要用命令参数指定自定义配置路径。
+
+
+## file_share
+
+只安装 `file_share`：
+
+```bash
+./install.sh --tool file_share
+```
+
+脚本会构建并安装 `file_share`，并在配置目录不存在 `file_share.json` 时安装示例配置。默认配置路径是：
+
+```text
+/etc/life_tools/file_share.json
+```
+
+运行示例：
+
+```bash
+file_share /path/to/file-or-dir
+file_share -addr 127.0.0.1:9000 /path/a /path/b
+file_share -config /etc/life_tools/file_share.json
+```
+
+`file_share` 默认无认证，用于个人临时分享。不要把含敏感文件、隐藏文件或符号链接的目录暴露到不可信网络。
 
 ## video_subtitle
 
@@ -114,7 +138,6 @@ ffprobe
 5. 编辑 `/etc/life_tools/*.json` 中的真实配置，密钥和 webhook 不要写回仓库。
 6. 用 `command -v <命令>` 和对应命令的 `--help` 或 `-h` 做最小验证。
 
-不要在没有用户确认的情况下执行 `--all`，因为它会安装实验性的 `dav`。
 
 ## 验证命令
 
@@ -124,6 +147,7 @@ command -v check_keywords
 command -v retry_exec
 command -v codex_hook_notify
 command -v video_subtitle
+command -v file_share
 ```
 
 常用帮助命令：
@@ -134,6 +158,7 @@ check_keywords -h
 retry_exec --help
 codex_hook_notify -h
 video_subtitle --help
+file_share -h
 ```
 
 ## 脚本行为

@@ -8,8 +8,8 @@ CONFIG_DIR="${LIFE_TOOLS_CONFIG_DIR:-/etc/life_tools}"
 HOOKS_FILE="$HOME/.codex/hooks.json"
 OS_NAME="$(uname -s)"
 
-STABLE_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle)
-ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle)
+STABLE_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share)
+ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share)
 REQUESTED_TOOLS=()
 SELECTED_TOOLS=()
 INSTALL_ALL=0
@@ -35,10 +35,10 @@ Options:
   -h, --help                   Show this help.
 
 Stable tools installed by default:
-  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle
+  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share
 
 All tool names:
-  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle
+  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share
 
 Examples:
   ./install.sh
@@ -46,6 +46,7 @@ Examples:
   ./install.sh --tool renameV1 --tool check_keywords
   ./install.sh --tool video_subtitle --with-python-deps
   ./install.sh --tool codex_hook_notify --install-codex-hook
+  ./install.sh --tool file_share
 EOF
 }
 
@@ -170,6 +171,9 @@ normalize_tool_name() {
       ;;
     video|video-subtitle|video_subtitle)
       echo "video_subtitle"
+      ;;
+    file|share|file-share|file_share)
+      echo "file_share"
       ;;
     *)
       return 1
@@ -305,7 +309,7 @@ needs_go() {
   local tool
   for tool in "${SELECTED_TOOLS[@]}"; do
     case "$tool" in
-      renameV1|check_keywords|retry_exec|codex_hook_notify)
+      renameV1|check_keywords|retry_exec|codex_hook_notify|file_share)
         return 0
         ;;
     esac
@@ -470,6 +474,19 @@ else:
 PYCODE
 }
 
+
+install_file_share() {
+  install_go_tool file_share file_share ./file_share/...
+  install_config_if_missing "$ROOT_DIR/sample/life_tools/file_share.json" "$CONFIG_DIR/file_share.json"
+  cat <<EOF
+file_share installed to $PREFIX/bin/file_share
+
+Examples:
+  file_share /path/to/file-or-dir
+  file_share -config $CONFIG_DIR/file_share.json
+EOF
+}
+
 install_video_subtitle() {
   local lib_dir="$PREFIX/lib/life_tools/video_subtitle"
   local wrapper="$OUTPUT_DIR/video_subtitle"
@@ -514,6 +531,9 @@ install_selected_tool() {
       ;;
     video_subtitle)
       install_video_subtitle
+      ;;
+    file_share)
+      install_file_share
       ;;
     *)
       echo "unsupported tool: $1" >&2
