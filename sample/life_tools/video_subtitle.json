@@ -1,0 +1,71 @@
+{
+  "asr": {
+    "api_key": "",
+    "resource_id": "volc.seedasr.auc",
+    "model_name": "bigmodel",
+    "poll_interval_seconds": 5,
+    "max_wait_seconds": 7200
+  },
+  "audio": {
+    "format": "mp3",
+    "sample_rate": 16000,
+    "channels": 1,
+    "bitrate": "64k"
+  },
+  "llm": {
+    "api_key": "",
+    "base_url": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "model": "",
+    "temperature": 0.2,
+    "batch_size": 40,
+    "response_format": "auto",
+    "max_parse_retries": 2,
+    "request_timeout_seconds": 120,
+    "parallel_requests": 10,
+    "max_batch_retries": 10,
+    "retry_base_delay_seconds": 1.0,
+    "retry_max_delay_seconds": 30.0
+  },
+  "prompts": {
+    "translation_template": "",
+    "split_template": "",
+    "consistency_template": ""
+  },
+  "subtitle_split": {
+    "enabled": true,
+    "target_min_seconds": 2.0,
+    "target_max_seconds": 4.0,
+    "use_word_timing": true,
+    "max_window_seconds": 60,
+    "max_words_per_chunk": 120,
+    "max_utterances_per_chunk": 8,
+    "chunk_cache_enabled": true,
+    "failure_policy": "fallback_chunk"
+  },
+  "logging": {
+    "progress_jsonl": true,
+    "stderr_preview_chars": 20
+  },
+  "embedded_subtitles": {
+    "enabled": true,
+    "auto_adopt": true,
+    "min_time_coverage": 0.8,
+    "min_aligned_ratio": 0.7,
+    "min_llm_consistency": 0.8,
+    "sample_size": 12
+  },
+  "tmdb": {
+    "api_key": "",
+    "bearer_token": "",
+    "language": "zh-CN"
+  },
+  "tos": {
+    "access_key": "",
+    "secret_key": "",
+    "endpoint": "",
+    "region": "",
+    "bucket": "",
+    "prefix": "video-subtitle/audio",
+    "presigned_url_ttl_seconds": 86400
+  }
+}
