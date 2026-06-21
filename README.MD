@@ -14,7 +14,8 @@
 1. 配置后使用简单，`retry_exec [your command] [your command args] [your command args] ...` 只要在你的命令执行前加上`retry_exec` 即可。
 2. 帮你重试，重试次数可以自定义；
 3. 重试时逐渐延长间隔时间，每次延长 2 倍，最小间隔时间、最大间隔时间可以自己设置；
-4. 如果程序最终执行失败，可以通过飞书自定义机器人、企业微信自定义机器人等渠道给自己发送一个提醒
+4. 如果程序最终执行失败，可以通过飞书自定义机器人、企业微信自定义机器人等渠道给自己发送一个提醒；
+5. 失败提醒会附带本次最终失败执行输出的末尾内容：优先取 `stderr`，如果 `stderr` 为空则取 `stdout`，最多 4KB，方便直接看到真实报错。
 
 ![飞书提醒](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261056_eba2bb5ee530ca60.jpg)
 
