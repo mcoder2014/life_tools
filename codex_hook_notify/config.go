@@ -1,12 +1,19 @@
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"os"
+	"strings"
+)
 
 const DefaultConfigPath = "/etc/life_tools/codex_hook_notify.json"
 
 type Config struct {
-	Routes []Route `json:"routes"`
+	MachineName string  `json:"machine_name"`
+	Routes      []Route `json:"routes"`
 }
+
+type HostnameFunc func() (string, error)
 
 type Route struct {
 	Events                []string `json:"events"`
@@ -43,4 +50,22 @@ func contains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func ResolveMachineName(config Config, hostname HostnameFunc) string {
+	if name := strings.TrimSpace(config.MachineName); name != "" {
+		return name
+	}
+	if hostname == nil {
+		hostname = os.Hostname
+	}
+	name, err := hostname()
+	if err != nil {
+		return "unknown"
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "unknown"
+	}
+	return name
 }

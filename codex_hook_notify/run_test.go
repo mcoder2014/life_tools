@@ -131,3 +131,29 @@ func TestRunSendsEveryMessagePart(t *testing.T) {
 	require.Contains(t, sent[0], "Codex Hook Reminder [1/")
 	require.Contains(t, logs, fmt.Sprintf("event Stop sent to 1 feishu webhook(s), %d message(s)", len(sent)))
 }
+
+func TestRunUsesConfiguredMachineName(t *testing.T) {
+	config := Config{
+		MachineName: "configured-machine",
+		Routes: []Route{
+			{Events: []string{"Stop"}, FeishuCustomRobotURLs: []string{"https://example.com/webhook"}},
+		},
+	}
+	var sent string
+
+	err := Run(context.Background(), RunOption{
+		Config: config,
+		Input:  bytes.NewBufferString(`{"hook_event_name":"Stop","session_id":"session-machine","last_assistant_message":"summary"}`),
+		Sender: SenderFunc(func(ctx context.Context, url string, text string) error {
+			sent = text
+			return nil
+		}),
+		Hostname: func() (string, error) {
+			return "os-host", nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Contains(t, sent, "Machine: configured-machine")
+	require.NotContains(t, sent, "Machine: os-host")
+}

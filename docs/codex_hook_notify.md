@@ -34,6 +34,7 @@
 
 ```json
 {
+  "machine_name": "home-nas",
   "routes": [
     {
       "events": ["Stop"],
@@ -52,6 +53,27 @@
 ```
 
 一个事件可以配置多个 webhook。没有匹配 route 的事件会被静默跳过。
+
+## 机器名
+
+所有通知都会包含 `Machine:` 字段，用来区分是哪台机器触发了 hook。
+
+机器名取值顺序：
+
+1. 配置文件顶层 `machine_name`，非空时直接使用；
+2. `machine_name` 未配置或为空时，使用当前操作系统 hostname；
+3. hostname 获取失败或为空时，显示 `unknown`。
+
+示例：
+
+```json
+{
+  "machine_name": "home-nas",
+  "routes": []
+}
+```
+
+`machine_name` 只影响通知展示，不参与 route 匹配、日志文件命名或 webhook 选择。
 
 ## Stop summary 来源
 

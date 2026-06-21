@@ -7,11 +7,12 @@ import (
 )
 
 type RunOption struct {
-	Config Config
-	Input  io.Reader
-	Stderr io.Writer
-	Sender Sender
-	Logger Logger
+	Config   Config
+	Input    io.Reader
+	Stderr   io.Writer
+	Sender   Sender
+	Logger   Logger
+	Hostname HostnameFunc
 }
 
 func Run(ctx context.Context, opt RunOption) error {
@@ -32,7 +33,7 @@ func Run(ctx context.Context, opt RunOption) error {
 		return nil
 	}
 
-	messages := BuildMessages(event)
+	messages := BuildMessagesWithMachine(event, ResolveMachineName(opt.Config, opt.Hostname))
 	sentMessages := 0
 	sentWebhooks := 0
 	for _, url := range urls {

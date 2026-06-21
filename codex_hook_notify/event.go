@@ -47,20 +47,24 @@ func BuildMessage(event HookEvent) string {
 }
 
 func BuildMessages(event HookEvent) []string {
+	return BuildMessagesWithMachine(event, "")
+}
+
+func BuildMessagesWithMachine(event HookEvent, machineName string) []string {
 	content := summary(event)
-	parts := splitText(content, messageContentLimit(event))
+	parts := splitText(content, messageContentLimit(event, machineName))
 	if len(parts) == 0 {
 		parts = []string{"No summary available."}
 	}
 
 	messages := make([]string, 0, len(parts))
 	for i, part := range parts {
-		messages = append(messages, formatMessage(event, part, i+1, len(parts)))
+		messages = append(messages, formatMessage(event, machineName, part, i+1, len(parts)))
 	}
 	return messages
 }
 
-func formatMessage(event HookEvent, content string, part int, total int) string {
+func formatMessage(event HookEvent, machineName string, content string, part int, total int) string {
 	var buf bytes.Buffer
 	title := "Codex Hook Reminder"
 	if total > 1 {
@@ -69,6 +73,7 @@ func formatMessage(event HookEvent, content string, part int, total int) string 
 	writeLine(&buf, title)
 	writeLine(&buf, "")
 	writeLine(&buf, "Reason: "+valueOrUnknown(event.HookEventName))
+	writeOptionalLine(&buf, "Machine: ", machineName)
 	writeLine(&buf, "Session: "+valueOrUnknown(event.SessionID))
 	writeOptionalLine(&buf, "Turn: ", event.TurnID)
 	writeOptionalLine(&buf, "CWD: ", event.CWD)
@@ -214,8 +219,8 @@ func writeLine(buf *bytes.Buffer, line string) {
 	buf.WriteByte('\n')
 }
 
-func messageContentLimit(event HookEvent) int {
-	header := formatMessage(event, "", 999, 999)
+func messageContentLimit(event HookEvent, machineName string) int {
+	header := formatMessage(event, machineName, "", 999, 999)
 	limit := maxMessageBytes - len(header)
 	if limit < 1000 {
 		return 1000

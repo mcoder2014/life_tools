@@ -83,6 +83,49 @@ func TestBuildMessagesKeepsNonStopEventsShort(t *testing.T) {
 	require.Contains(t, msgs[0], "...(truncated)")
 }
 
+func TestBuildMessagesWithMachineIncludesMachineForStop(t *testing.T) {
+	event := HookEvent{
+		HookEventName:        "Stop",
+		SessionID:            "session-machine",
+		LastAssistantMessage: "summary",
+	}
+
+	msgs := BuildMessagesWithMachine(event, "home-nas")
+
+	require.Len(t, msgs, 1)
+	require.Contains(t, msgs[0], "Reason: Stop")
+	require.Contains(t, msgs[0], "Machine: home-nas")
+	require.Contains(t, msgs[0], "Session: session-machine")
+}
+
+func TestBuildMessagesWithMachineIncludesMachineForPermissionRequest(t *testing.T) {
+	event := HookEvent{
+		HookEventName: "PermissionRequest",
+		SessionID:     "session-machine",
+	}
+
+	msgs := BuildMessagesWithMachine(event, "home-nas")
+
+	require.Len(t, msgs, 1)
+	require.Contains(t, msgs[0], "Reason: PermissionRequest")
+	require.Contains(t, msgs[0], "Machine: home-nas")
+}
+
+func TestBuildMessagesWithMachineIncludesMachineOnEveryPart(t *testing.T) {
+	event := HookEvent{
+		HookEventName:        "Stop",
+		SessionID:            "session-parts-machine",
+		LastAssistantMessage: strings.Repeat("long output line\n", 600),
+	}
+
+	msgs := BuildMessagesWithMachine(event, "home-nas")
+
+	require.Greater(t, len(msgs), 1)
+	for _, msg := range msgs {
+		require.Contains(t, msg, "Machine: home-nas")
+	}
+}
+
 func TestSafeLogFileName(t *testing.T) {
 	name := LogFileName("2026-06-21", "abc/../def 123")
 
