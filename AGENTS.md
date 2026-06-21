@@ -14,7 +14,6 @@
 
 - `renameV1/`：批量重命名命令行工具，入口是 `package main`。
 - `save_work/`：敏感词检测工具，构建产物名是 `check_keywords`。
-- `webdav/`：WebDAV 可执行入口，当前是实验性质实现。
 - `video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/video_subtitle.md`。
 - `docs/`：项目文档，`video_subtitle` 的使用和维护说明在 `docs/video_subtitle.md`。
 - `sample/life_tools/`：示例配置文件。
@@ -35,7 +34,8 @@
 
 - `./output/renameV1` from `./renameV1/...`
 - `./output/check_keywords` from `./save_work/...`
-- `./output/dav` from `./webdav/...`
+- `./output/retry_exec` from `./retry_exec/...`
+- `./output/codex_hook_notify` from `./codex_hook_notify/...`
 
 测试优先使用：
 
@@ -48,7 +48,6 @@ go test ./...
 ```bash
 go test ./renameV1
 go test ./save_work
-go test ./webdav
 ```
 
 涉及代码、配置、依赖或构建脚本的改动，交付前必须跑相应测试或构建。纯文档改动不需要假装跑 Go 测试，但要检查 diff。
@@ -98,20 +97,6 @@ go test ./webdav
 - 修改 split 逻辑时，优先用已有 `utterances.json` 或离线 fake LLM 测试，不要直接从真实视频重新烧 ASR。
 - 交付前至少运行：`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest video_subtitle/video_subtitle_test.py`。
 - 如果改了 Python 文件，还要运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile video_subtitle/video_subtitle.py video_subtitle/video_subtitle_test.py video_subtitle/lib/*.py`。
-
-## `webdav` 规则
-
-`webdav/main.go` 当前是新近加入的可执行入口，含硬编码 BasicAuth：
-
-- 用户名：`user`
-- 密码：`123456`
-
-这不是安全生产实现。修改或使用它时必须明确风险：
-
-- 不要把硬编码账号密码当成可接受默认值继续扩散。
-- 不要记录真实密码、token 或 Authorization 头。
-- 对外暴露监听地址、认证、日志内容前必须重新审查。
-- `http.ListenAndServe` 当前没有错误处理，新增代码应处理返回错误。
 
 ## 配置与生成物
 
