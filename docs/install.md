@@ -11,7 +11,7 @@
 - 默认安装路径：可执行文件放到 `/usr/local/bin`，Python 工具文件放到 `/usr/local/lib/life_tools`。
 - 默认配置路径：`/etc/life_tools`，可用 `--config-dir` 改变安装脚本写入位置。
 
-写入 `/usr/local`、`/etc/life_tools`、`/var/log` 时可能需要 `sudo`。脚本会在需要时调用 `sudo`，不会覆盖已经存在的配置文件。
+写入 `/usr/local`、`/etc/life_tools` 和 Linux 的 `/var/log` 时可能需要 `sudo`。脚本会在需要时调用 `sudo`，不会覆盖已经存在的配置文件。
 
 ## 工具清单
 
@@ -165,7 +165,9 @@ file_share -h
 
 - Go 工具会先构建到 `output/`，再安装到目标 `bin` 目录。
 - 示例配置只在目标文件不存在时安装，已有配置不会被覆盖。
-- `retry_exec` 会创建 `/var/log/retry_exec` 并设置为当前用户可写。
+- `retry_exec` 的日志目录按系统选择：
+  - Linux：`/var/log/retry_exec`
+  - macOS：`~/Library/Logs/retry_exec`
 - `codex_hook_notify` 的日志目录按系统选择：
   - Linux：`/var/log/codex_hook_notify`
   - macOS：`~/Library/Logs/codex_hook_notify`

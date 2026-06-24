@@ -188,7 +188,7 @@ add_requested_tool() {
     echo "run ./install.sh --help to list supported tools" >&2
     exit 1
   fi
-  if ! contains_tool "$normalized" "${REQUESTED_TOOLS[@]}"; then
+  if [ "${#REQUESTED_TOOLS[@]}" -eq 0 ] || ! contains_tool "$normalized" "${REQUESTED_TOOLS[@]}"; then
     REQUESTED_TOOLS+=("$normalized")
   fi
 }
@@ -202,6 +202,9 @@ add_requested_tools_csv() {
   IFS="$old_ifs"
 
   local name
+  if [ "${#names[@]}" -eq 0 ]; then
+    return
+  fi
   for name in "${names[@]}"; do
     if [ -n "$name" ]; then
       add_requested_tool "$name"
@@ -373,10 +376,50 @@ install_check_keywords() {
   install_config_if_missing "$ROOT_DIR/sample/life_tools/check_keywords.json" "$CONFIG_DIR/check_keywords.json"
 }
 
+retry_exec_log_dir() {
+  case "$OS_NAME" in
+    Darwin)
+      echo "$HOME/Library/Logs/retry_exec"
+      ;;
+    *)
+      echo "/var/log/retry_exec"
+      ;;
+  esac
+}
+
+install_retry_exec_config_if_missing() {
+  local sample="$ROOT_DIR/sample/life_tools/retry_exec.json"
+  local dest="$CONFIG_DIR/retry_exec.json"
+  local log_dir="$1"
+  local tmp_config
+
+  ensure_dir "$CONFIG_DIR" 0755
+  if [ -f "$dest" ]; then
+    echo "config exists, skip overwrite: $dest"
+    if [ "$OS_NAME" = "Darwin" ] && grep -q '"log"[[:space:]]*:[[:space:]]*"/var/log/retry_exec"' "$dest" 2>/dev/null; then
+      echo "warning: $dest still uses /var/log/retry_exec; edit log to $log_dir to avoid sudo-only logging on macOS" >&2
+    fi
+    return
+  fi
+
+  if [ "$log_dir" = "/var/log/retry_exec" ]; then
+    install_file "$sample" "$dest" 0644
+  else
+    mkdir -p "$OUTPUT_DIR"
+    tmp_config="$OUTPUT_DIR/retry_exec.json"
+    sed "s#\"log\": \"/var/log/retry_exec\"#\"log\": \"$log_dir\"#" "$sample" > "$tmp_config"
+    install_file "$tmp_config" "$dest" 0644
+  fi
+  echo "installed sample config: $dest"
+}
+
 install_retry_exec() {
+  local log_dir
+
+  log_dir="$(retry_exec_log_dir)"
   install_go_tool retry_exec retry_exec ./retry_exec/...
-  install_config_if_missing "$ROOT_DIR/sample/life_tools/retry_exec.json" "$CONFIG_DIR/retry_exec.json"
-  ensure_user_writable_dir "/var/log/retry_exec"
+  install_retry_exec_config_if_missing "$log_dir"
+  ensure_user_writable_dir "$log_dir"
 }
 
 install_codex_hook_notify() {

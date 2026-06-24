@@ -59,7 +59,7 @@
 ./install.sh --tool retry_exec
 ```
 
-脚本会安装 `retry_exec`，并在 `/etc/life_tools/retry_exec.json` 不存在时写入示例配置，还会创建 `/var/log/retry_exec`。安装后编辑配置里的提醒机器人地址和日志路径。
+脚本会安装 `retry_exec`，并在 `/etc/life_tools/retry_exec.json` 不存在时写入示例配置。日志目录按系统选择：Linux 使用 `/var/log/retry_exec`，macOS 使用 `~/Library/Logs/retry_exec`。安装后编辑配置里的提醒机器人地址和日志路径。
 
 
 ![使用照片](https://mcoder-image-storage.oss-cn-hangzhou.aliyuncs.com/image/25261103_2f53b1735abdb443.jpg)
