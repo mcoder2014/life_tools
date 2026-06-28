@@ -103,10 +103,10 @@ renameV1/tmp/
 **/obj/
 
 # SwiftPM and macOS app build artifacts
-mac_app/**/.build/
-mac_app/**/.swiftpm/
-mac_app/**/dist/
-mac_app/**/*.xcodeproj/
-mac_app/**/*.xcworkspace/
+gui/**/.build/
+gui/**/.swiftpm/
+gui/**/dist/
+gui/**/*.xcodeproj/
+gui/**/*.xcworkspace/
 *.app
 *.dSYM/

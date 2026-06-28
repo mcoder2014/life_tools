@@ -9,6 +9,48 @@
 
 提醒失败不会阻塞 Codex。程序会向 stderr 输出错误，并写入本地日志。
 
+## 设计目标
+
+| 目标 | 处理方式 |
+|---|---|
+| 不阻塞 Codex | 读取、解析、发送和写日志失败都返回 0，只写 stderr 和日志 |
+| 支持按事件路由 | 配置中用 `routes[].events` 匹配 hook event |
+| Stop 内容更有用 | 优先从本机 transcript 提取最后一轮 assistant 可见输出 |
+| 长消息可发送 | 飞书 text 内容过长时拆成多条消息 |
+| 多机器可区分 | 每条通知都带 `Machine:` 字段 |
+
+## 代码结构
+
+| 路径 | 作用 |
+|---|---|
+| `cli/codex_hook_notify/main.go` | CLI 入口，读取配置并调用 `Run` |
+| `cli/codex_hook_notify/config.go` | 配置结构、事件匹配、机器名解析 |
+| `cli/codex_hook_notify/event.go` | Codex hook 输入解析和通知文本构造 |
+| `cli/codex_hook_notify/transcript.go` | 从 `CODEX_HOME/sessions` 查找 transcript 并提取 summary |
+| `cli/codex_hook_notify/feishu.go` | 飞书自定义机器人发送 |
+| `cli/codex_hook_notify/logger.go` | 本地日志路径和日志写入 |
+| `cli/codex_hook_notify/run.go` | 主流程编排和失败上报 |
+
+## 处理流程
+
+```mermaid
+flowchart TD
+    A["读取 --config"] --> B["解析 codex_hook_notify.json"]
+    B --> C["从 stdin 读取 Codex hook JSON"]
+    C --> D["解析 hook_event_name 和 session 信息"]
+    D --> E{"配置中是否匹配事件?"}
+    E -->|否| F["静默结束"]
+    E -->|是| G["解析 Machine 名称"]
+    G --> H{"是否 Stop 事件?"}
+    H -->|是| I["尝试读取 transcript summary"]
+    H -->|否| J["使用 hook 输入构造消息"]
+    I --> K["失败时回退 last_assistant_message"]
+    J --> L["按长度拆分飞书 text"]
+    K --> L
+    L --> M["发送到匹配的 webhook"]
+    M --> N["写入本地日志"]
+```
+
 ## 默认路径
 
 | 内容 | Linux | macOS |

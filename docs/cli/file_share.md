@@ -2,6 +2,43 @@
 
 `file_share` 用来临时分享本机文件或目录。它启动一个只读 HTTP 服务，访问者只能浏览程序启动时选择的共享范围。
 
+## 设计目标
+
+| 目标 | 处理方式 |
+|---|---|
+| 快速分享本机路径 | 直接把命令行路径或 JSON 配置转换成共享条目 |
+| 保持只读 | HTTP 只允许 `GET` 和 `HEAD` |
+| 支持目录浏览 | 目录页用 HTML 表格展示名称、类型、大小和修改时间 |
+| 支持目录打包 | `/zip/` 路由按请求实时创建 zip |
+| 避免明显路径穿越 | URL 相对路径包含 `.` 或 `..` 段时直接拒绝 |
+
+## 代码结构
+
+| 路径 | 作用 |
+|---|---|
+| `cli/file_share/main.go` | CLI 参数、配置加载和 HTTP server 启动 |
+| `cli/file_share/config.go` | JSON 配置、共享条目构造和路径 stat |
+| `cli/file_share/server.go` | 路由、目录页渲染、文件下载、目录 zip 和访问日志 |
+| `sample/life_tools/file_share.json` | 示例配置 |
+
+## 请求流程
+
+```mermaid
+flowchart TD
+    A["启动 file_share"] --> B{"是否传入 -config?"}
+    B -->|是| C["读取 JSON entries"]
+    B -->|否| D["读取命令行路径参数"]
+    C --> E["BuildEntries 校验路径并分配 ID"]
+    D --> E
+    E --> F["启动 http.ListenAndServe"]
+    F --> G{"请求路径"}
+    G -->|"/"| H["渲染共享入口页"]
+    G -->|"/browse/{id}/..."| I["浏览目录或内联打开文件"]
+    G -->|"/raw/{id}/..."| J["内联返回文件"]
+    G -->|"/download/{id}/..."| K["附件下载文件"]
+    G -->|"/zip/{id}/..."| L["实时打包目录 zip"]
+```
+
 ## 安装
 
 ```bash

@@ -87,13 +87,13 @@ file_share -config /etc/life_tools/file_share.json
 `InterviewTimer` 是 macOS 面试悬浮计时 App，源码位于：
 
 ```text
-mac_app/interview_timer
+gui/interview_timer
 ```
 
 它不是命令行工具，不会被仓库根目录 `install.sh` 安装。构建和安装：
 
 ```bash
-cd mac_app/interview_timer
+cd gui/interview_timer
 swift test
 ./scripts/build_app.sh
 mkdir -p "$HOME/Applications"
@@ -107,7 +107,7 @@ open "$HOME/Applications/InterviewTimer.app"
 ~/Library/Application Support/InterviewTimer/templates/
 ```
 
-仓库内预置模板在 `mac_app/interview_timer/template-presets/`。完整说明见 [interview_timer.md](interview_timer.md)。
+仓库内预置模板在 `gui/interview_timer/template-presets/`。完整说明见 [gui/interview_timer.md](gui/interview_timer.md)。
 
 ## video_subtitle
 
@@ -203,5 +203,5 @@ open "$HOME/Applications/InterviewTimer.app"
   - Linux：`/var/log/codex_hook_notify`
   - macOS：`~/Library/Logs/codex_hook_notify`
   - 其他系统：`~/.codex_hook_notify/logs`
-- `video_subtitle` 会复制 `video_subtitle/` 到 `<prefix>/lib/life_tools/video_subtitle`，再安装一个同名包装命令。
-- `InterviewTimer` 需要在 `mac_app/interview_timer` 下单独构建 `.app`，根目录安装脚本不会复制或覆盖 macOS 应用。
+- `video_subtitle` 会复制 `cli/video_subtitle/` 到 `<prefix>/lib/life_tools/video_subtitle`，再安装一个同名包装命令。
+- `InterviewTimer` 需要在 `gui/interview_timer` 下单独构建 `.app`，根目录安装脚本不会复制或覆盖 macOS 应用。

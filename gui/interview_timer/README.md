@@ -2,7 +2,7 @@
 
 一个独立的 macOS 面试悬浮计时工具，适合在另一个系统旁边主持面试时使用。
 
-该应用在 `life_tools` 仓库中归档于 `mac_app/interview_timer/`。仓库级背景、安装和维护说明见 `../../docs/interview_timer.md`。
+该应用在 `life_tools` 仓库中归档于 `gui/interview_timer/`。仓库级背景、安装和维护说明见 `../../docs/gui/interview_timer.md`。
 
 ## 功能
 

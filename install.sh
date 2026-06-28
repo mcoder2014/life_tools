@@ -367,12 +367,12 @@ codex_log_dir() {
 }
 
 install_rename_v1() {
-  install_go_tool renameV1 renameV1 ./renameV1/...
+  install_go_tool renameV1 renameV1 ./cli/renameV1/...
   echo "renameV1 uses per-directory config files; sample: sample/life_tools/rename_v1.json"
 }
 
 install_check_keywords() {
-  install_go_tool check_keywords check_keywords ./save_work/...
+  install_go_tool check_keywords check_keywords ./cli/check_keywords/...
   install_config_if_missing "$ROOT_DIR/sample/life_tools/check_keywords.json" "$CONFIG_DIR/check_keywords.json"
 }
 
@@ -417,7 +417,7 @@ install_retry_exec() {
   local log_dir
 
   log_dir="$(retry_exec_log_dir)"
-  install_go_tool retry_exec retry_exec ./retry_exec/...
+  install_go_tool retry_exec retry_exec ./cli/retry_exec/...
   install_retry_exec_config_if_missing "$log_dir"
   ensure_user_writable_dir "$log_dir"
 }
@@ -426,7 +426,7 @@ install_codex_hook_notify() {
   local config_file="$CONFIG_DIR/codex_hook_notify.json"
   local log_dir
 
-  install_go_tool codex_hook_notify codex_hook_notify ./codex_hook_notify/...
+  install_go_tool codex_hook_notify codex_hook_notify ./cli/codex_hook_notify/...
   install_config_if_missing "$ROOT_DIR/sample/life_tools/codex_hook_notify.json" "$config_file"
   log_dir="$(codex_log_dir)"
   ensure_user_writable_dir "$log_dir"
@@ -519,7 +519,7 @@ PYCODE
 
 
 install_file_share() {
-  install_go_tool file_share file_share ./file_share/...
+  install_go_tool file_share file_share ./cli/file_share/...
   install_config_if_missing "$ROOT_DIR/sample/life_tools/file_share.json" "$CONFIG_DIR/file_share.json"
   cat <<EOF
 file_share installed to $PREFIX/bin/file_share
@@ -536,7 +536,7 @@ install_video_subtitle() {
 
   require_command python3
   mkdir -p "$OUTPUT_DIR"
-  copy_dir_contents "$ROOT_DIR/video_subtitle" "$lib_dir"
+  copy_dir_contents "$ROOT_DIR/cli/video_subtitle" "$lib_dir"
   install_config_if_missing "$ROOT_DIR/sample/life_tools/video_subtitle.json" "$CONFIG_DIR/video_subtitle.json"
 
   cat > "$wrapper" <<EOF
@@ -547,13 +547,13 @@ EOF
   install_executable "$wrapper" "$PREFIX/bin/video_subtitle"
 
   if [ "$WITH_PYTHON_DEPS" -eq 1 ]; then
-    python3 -m pip install -r "$ROOT_DIR/video_subtitle/requirements.txt"
+    python3 -m pip install -r "$ROOT_DIR/cli/video_subtitle/requirements.txt"
   else
     cat <<EOF
 video_subtitle Python package files installed to $lib_dir
 Python dependencies were not installed.
 Run this if the runtime environment does not already have them:
-  python3 -m pip install -r $ROOT_DIR/video_subtitle/requirements.txt
+  python3 -m pip install -r $ROOT_DIR/cli/video_subtitle/requirements.txt
 EOF
   fi
 }
