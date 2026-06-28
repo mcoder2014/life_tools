@@ -4,7 +4,7 @@
 .DS_Store
 output
 bin
-build.sh
+/build.sh
 .idea
 
 # User-specific stuff
@@ -97,3 +97,7 @@ venv/
 .env
 # Go test scratch directories
 renameV1/tmp/
+
+# .NET build artifacts
+**/bin/
+**/obj/
