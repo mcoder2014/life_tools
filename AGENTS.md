@@ -15,6 +15,7 @@
 - `renameV1/`：批量重命名命令行工具，入口是 `package main`。
 - `save_work/`：敏感词检测工具，构建产物名是 `check_keywords`。
 - `video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/video_subtitle.md`。
+- `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/emby_video_subtitle_plugin.md`。
 - `docs/`：项目文档，`video_subtitle` 的使用和维护说明在 `docs/video_subtitle.md`。
 - `sample/life_tools/`：示例配置文件。
 - `renameV1/testData/`：`renameV1` 的测试数据，包含媒体文件、nfo、bif 等样例。
@@ -97,6 +98,31 @@ go test ./save_work
 - 修改 split 逻辑时，优先用已有 `utterances.json` 或离线 fake LLM 测试，不要直接从真实视频重新烧 ASR。
 - 交付前至少运行：`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest video_subtitle/video_subtitle_test.py`。
 - 如果改了 Python 文件，还要运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile video_subtitle/video_subtitle.py video_subtitle/video_subtitle_test.py video_subtitle/lib/*.py`。
+
+
+### `video_subtitle` 与 Emby 插件兼容性
+
+`emby_plugins/video_subtitle` 不是独立工具，它运行时依赖 `video_subtitle` 的 CLI 行为。修改 `video_subtitle` 时必须同步检查插件是否受影响，尤其是这些边界：
+
+- `/usr/local/bin/video_subtitle` 默认入口是否仍可执行。
+- `--input`、`--config`、`--source-language`、`--yes`、`--force-asr`、`--force-split`、`--force-translate` 参数语义是否保持兼容。
+- 输出路径是否仍默认写到视频同目录的 `.zh-CN.srt`，且不覆盖已有字幕。
+- 工作目录是否仍在视频同目录 `.video_subtitle_work/`，Emby 服务用户需要读写权限。
+- stderr/progress 输出变更是否会影响任务历史中的 `StdoutTail`、`StderrTail` 和排障流程。
+
+涉及上述行为时，除 Python 测试外，还要运行：
+
+```bash
+dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
+dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
+```
+
+如果改了插件构建或安装脚本，还要运行：
+
+```bash
+emby_plugins/video_subtitle/build.sh --no-test
+emby_plugins/video_subtitle/install.sh --help
+```
 
 ## 配置与生成物
 

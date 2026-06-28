@@ -251,28 +251,132 @@ POST /LifeTools/VideoSubtitle/Batches
 3. `ExecutablePath` 和 `ExtraArgs` 仍然是高权限配置，只有可信管理员能改。
 4. Emby Server 进程需要对媒体目录有读写权限，否则无法创建 `.zh-CN.srt` 和 `.video_subtitle_work/`。
 
-## 构建与验证
+## 开发、构建与安装
 
-安装 .NET SDK 8 后执行：
+### 开发环境
+
+插件开发和构建需要：
+
+- .NET SDK 8，用来编译 `netstandard2.0` 插件和运行 `net8.0` 测试。
+- Emby Server 4.9，本机验证版本为 4.9.x。
+- 已安装并配置 `video_subtitle`，默认路径 `/usr/local/bin/video_subtitle`，默认配置 `/etc/life_tools/video_subtitle.json`。
+- Emby 服务用户对媒体目录有读写权限。插件不替你修媒体目录权限。
+
+先确认工具链：
 
 ```bash
-dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
-dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
+dotnet --version
+/usr/local/bin/video_subtitle --help
+```
+
+### 构建脚本
+
+插件目录提供独立构建脚本：
+
+```bash
+cd emby_plugins/video_subtitle
+./build.sh
+```
+
+默认行为是先运行测试，再用 `Release` 配置构建解决方案。只构建不跑测试：
+
+```bash
+./build.sh --no-test
+```
+
+指定配置：
+
+```bash
+./build.sh --configuration Debug
+```
+
+等价的手工命令：
+
+```bash
+dotnet test LifeTools.Emby.VideoSubtitle.sln --configuration Release
+dotnet build LifeTools.Emby.VideoSubtitle.sln --configuration Release
 ```
 
 构建产物：
 
 ```text
-emby_plugins/video_subtitle/src/LifeTools.Emby.VideoSubtitle.Emby/bin/Debug/netstandard2.0/LifeTools.Emby.VideoSubtitle.Emby.dll
+emby_plugins/video_subtitle/src/LifeTools.Emby.VideoSubtitle.Emby/bin/Release/netstandard2.0/LifeTools.Emby.VideoSubtitle.Emby.dll
 ```
 
-Emby 插件项目会把核心源码编进 adapter DLL，部署到 Emby 插件目录时只复制：
+### 安装脚本
+
+插件目录提供独立安装脚本：
+
+```bash
+cd emby_plugins/video_subtitle
+sudo ./install.sh --restart
+```
+
+默认安装目录是：
+
+```text
+/var/lib/emby/plugins
+```
+
+默认安装流程：先执行 `./build.sh`，然后只复制下面这个文件到 Emby 插件目录：
 
 ```text
 LifeTools.Emby.VideoSubtitle.Emby.dll
 ```
 
-不要把 `MediaBrowser.*`、`Emby.*` 或核心库独立 DLL 一起复制进 Emby 插件目录；本机 Emby 4.9 验证过，多 DLL 加第三方 SQLite 依赖会在插件扫描阶段触发程序集加载失败。
+不要把 `MediaBrowser.*`、`Emby.*` 或核心库独立 DLL 一起复制进 Emby 插件目录；本机 Emby 4.9 验证过，多 DLL 加第三方 SQLite 依赖会在插件扫描阶段触发程序集加载失败。Emby 部署版已经把核心源码编进 adapter DLL，并使用无外部依赖的文件 job store。
+
+常用安装方式：
+
+```bash
+# 构建、安装，但不重启 Emby
+sudo ./install.sh
+
+# 构建、安装，并重启 emby-server
+sudo ./install.sh --restart
+
+# 安装已有 DLL，不重新构建
+sudo ./install.sh \
+  --dll ./src/LifeTools.Emby.VideoSubtitle.Emby/bin/Release/netstandard2.0/LifeTools.Emby.VideoSubtitle.Emby.dll \
+  --restart
+
+# 安装到临时目录，用于检查脚本行为
+./install.sh \
+  --dll ./src/LifeTools.Emby.VideoSubtitle.Emby/bin/Release/netstandard2.0/LifeTools.Emby.VideoSubtitle.Emby.dll \
+  --plugins-dir /tmp/emby-plugins \
+  --no-restart
+```
+
+如果 Emby 服务名不是 `emby-server`：
+
+```bash
+sudo ./install.sh --restart --service emby
+```
+
+安装后确认插件 DLL：
+
+```bash
+ls -l /var/lib/emby/plugins/LifeTools.Emby.VideoSubtitle.Emby.dll
+sudo systemctl restart emby-server
+```
+
+重启后在 Emby 管理后台的插件列表中找到 `Life Tools Video Subtitle`，从插件详情配置入口打开控制页。页面资源当前是 `LifeToolsVideoSubtitleV11`，也可以直接访问：
+
+```text
+http://<emby-host>:8096/web/index.html#!/configurationpage?name=LifeToolsVideoSubtitleV11
+```
+
+### 运行验证
+
+完整提交前至少运行：
+
+```bash
+git diff --check
+dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
+dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
+emby_plugins/video_subtitle/build.sh --no-test
+emby_plugins/video_subtitle/install.sh --help
+```
 
 生成字幕成功后，adapter 会尝试刷新对应 Emby 条目：优先使用 job 的 `ItemId` 查找媒体项，手动路径任务则用 `ILibraryManager.FindByPath` 查找。刷新通过 `IProviderManager.QueueRefresh` 排队，不阻塞字幕队列；刷新失败只写 Emby 日志，不把已成功的字幕任务改成失败。
 

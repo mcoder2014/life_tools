@@ -279,6 +279,8 @@ Emby 插件核心和适配层验证：
 ```bash
 dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
 dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
+emby_plugins/video_subtitle/build.sh --no-test
+emby_plugins/video_subtitle/install.sh --help
 ```
 
 CLI 入口检查：
