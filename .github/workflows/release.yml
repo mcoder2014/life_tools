@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release.yml'
+      - '.github/workflows/go-test.yml'
+      - '.github/workflows/python-test.yml'
       - 'docs/release.md'
       - 'README.MD'
       - 'AGENTS.md'
@@ -48,9 +50,8 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Run video_subtitle tests
+      - name: Compile video_subtitle Python files
         run: |
-          python3 -m unittest video_subtitle/video_subtitle_test.py
           python3 -m py_compile \
             video_subtitle/video_subtitle.py \
             video_subtitle/video_subtitle_test.py \

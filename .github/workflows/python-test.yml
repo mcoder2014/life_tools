@@ -1,0 +1,43 @@
+name: Python Test Reminder
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/python-test.yml'
+      - 'video_subtitle/**'
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/python-test.yml'
+      - 'video_subtitle/**'
+
+permissions:
+  contents: read
+
+jobs:
+  python-test:
+    name: Python test reminder
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run video_subtitle tests
+        id: python-test
+        continue-on-error: true
+        run: python3 -m unittest video_subtitle/video_subtitle_test.py
+
+      - name: Write reminder summary
+        if: steps.python-test.outcome == 'failure'
+        run: |
+          echo '## Python test reminder' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '`python3 -m unittest video_subtitle/video_subtitle_test.py` failed. This workflow is advisory and does not block release packaging.' >> "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,6 @@
 # 发布说明
 
-本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并把 zip 上传到 GitHub Release。PR 会执行发布包打包 dry-run，但不会创建 Release。Go 测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。
+本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并把 zip 上传到 GitHub Release。PR 会执行发布包打包 dry-run，但不会创建 Release。Go 和 Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。
 
 ## 触发方式
 
@@ -27,6 +27,7 @@ on:
     paths:
       - '.github/workflows/release.yml'
       - '.github/workflows/go-test.yml'
+      - '.github/workflows/python-test.yml'
       - 'docs/release.md'
       - 'README.MD'
       - 'AGENTS.md'
@@ -41,7 +42,7 @@ on:
       - 'v*'
 ```
 
-`pull_request` 在 release workflow 中只做 Python、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，并在 `Run Go tests` step 上配置 `continue-on-error: true`。
+`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，Python 单元测试由 `.github/workflows/python-test.yml` 单独执行，两者都在测试 step 上配置 `continue-on-error: true`。
 
 ## 发布包
 
@@ -85,19 +86,19 @@ LifeTools.Emby.VideoSubtitle.Emby.dll
 发布前 release workflow 会运行：
 
 ```bash
-python3 -m unittest video_subtitle/video_subtitle_test.py
 python3 -m py_compile video_subtitle/video_subtitle.py video_subtitle/video_subtitle_test.py video_subtitle/lib/*.py
 dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
 dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
 ```
 
-Go 测试提示 workflow 会运行：
+测试提示 workflow 会运行：
 
 ```bash
 go test ./...
+python3 -m unittest video_subtitle/video_subtitle_test.py
 ```
 
-该 workflow 不阻塞 release workflow。
+这些 workflow 不阻塞 release workflow。
 
 ## 权限
 
