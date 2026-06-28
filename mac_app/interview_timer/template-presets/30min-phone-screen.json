@@ -1,0 +1,14 @@
+{
+  "templateName": "30min 电话初筛",
+  "warnings": {
+    "stageLastSeconds": 30,
+    "overallLastSeconds": 180
+  },
+  "stages": [
+    { "id": "intro", "name": "开场与预期对齐", "durationMinutes": 3 },
+    { "id": "resume-quick-scan", "name": "简历快速过一遍", "durationMinutes": 5 },
+    { "id": "experience-deep-dive", "name": "重点经历追问", "durationMinutes": 10 },
+    { "id": "technical-basics", "name": "基础技术问题", "durationMinutes": 7 },
+    { "id": "qa-close", "name": "候选人提问与收尾", "durationMinutes": 5 }
+  ]
+}

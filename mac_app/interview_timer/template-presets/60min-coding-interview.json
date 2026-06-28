@@ -1,0 +1,14 @@
+{
+  "templateName": "60min 编码面试",
+  "warnings": {
+    "stageLastSeconds": 60,
+    "overallLastSeconds": 300
+  },
+  "stages": [
+    { "id": "intro", "name": "开场与题目说明", "durationMinutes": 5 },
+    { "id": "clarification", "name": "需求澄清与思路", "durationMinutes": 10 },
+    { "id": "coding", "name": "编码实现", "durationMinutes": 25 },
+    { "id": "testing-optimization", "name": "测试与优化", "durationMinutes": 10 },
+    { "id": "qa-close", "name": "提问与收尾", "durationMinutes": 10 }
+  ]
+}

@@ -1,6 +1,6 @@
 # 发布说明
 
-本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并把 zip 上传到 GitHub Release。PR 会执行发布包打包 dry-run，但不会创建 Release。Go 和 Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。
+本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并把 zip 上传到 GitHub Release。PR 会执行发布包打包 dry-run，但不会创建 Release。Go 和 Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。Swift macOS App 使用独立 workflow 验证和上传未签名 `.app` 产物。
 
 ## 触发方式
 
@@ -17,6 +17,7 @@ workflow 文件：
 
 ```text
 .github/workflows/release.yml
+.github/workflows/swift-mac-app.yml
 ```
 
 触发条件：
@@ -44,12 +45,15 @@ on:
 
 `pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，Python 单元测试由 `.github/workflows/python-test.yml` 单独执行。测试失败时 reminder workflow 只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
 
+`swift-mac-app.yml` 使用 `macos-latest` runner。PR 和 `master` 推送会验证 `mac_app/interview_timer` 的 Swift 单测、可执行产物构建和 `.app` 打包；`v*` tag 会额外上传未签名的 `InterviewTimer.app` zip。
+
 ## 发布操作流程
 
 1. 先把发布相关 PR 合并到 `master`。
 2. 在本地同步最新 `master`，创建新的 `v*` tag，并推送到远端。不要复用已经发布过的 tag；新版本用新 tag。
 3. 打开 GitHub Actions 的 `Release` workflow，确认 tag 触发的 `Build release assets` job 成功。
 4. 打开 GitHub 仓库的 Releases 页面，进入对应 tag，例如 `v0.0.3`，下载需要的 zip。
+5. 如果需要 `InterviewTimer.app`，下载 `life_tools_interview_timer_macos_<tag>.zip`，解压后把 `InterviewTimer.app` 放到 `~/Applications` 或 `/Applications`。
 
 也可以用 GitHub CLI 下载产物：
 
@@ -73,6 +77,8 @@ life_tools_darwin_amd64_<tag>.zip
 life_tools_darwin_arm64_<tag>.zip
 life_tools_video_subtitle_source_<tag>.zip
 life_tools_emby_video_subtitle_plugin_<tag>.zip
+life_tools_interview_timer_macos_<tag>.zip
+life_tools_interview_timer_macos_<tag>.sha256
 checksums.txt
 ```
 
@@ -99,6 +105,14 @@ LifeTools.Emby.VideoSubtitle.Emby.dll
 
 不要把 `MediaBrowser.*`、`Emby.*` 或核心库 DLL 放进 Emby 插件目录。
 
+`InterviewTimer` 发布包包含：
+
+```text
+InterviewTimer.app
+```
+
+该包由 `mac_app/interview_timer/scripts/build_app.sh` 生成，当前不做代码签名和 notarization。macOS 首次打开时可能需要用户在系统安全设置中手动允许。
+
 ## CI 验证
 
 发布前 release workflow 会运行：
@@ -107,6 +121,15 @@ LifeTools.Emby.VideoSubtitle.Emby.dll
 python3 -m py_compile video_subtitle/video_subtitle.py video_subtitle/video_subtitle_test.py video_subtitle/lib/*.py
 dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
 dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
+```
+
+Swift macOS App workflow 会运行：
+
+```bash
+cd mac_app/interview_timer
+swift test
+swift build --product InterviewTimerApp
+./scripts/build_app.sh
 ```
 
 测试提示 workflow 会运行：

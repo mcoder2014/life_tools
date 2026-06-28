@@ -1,0 +1,15 @@
+{
+  "templateName": "90min 综合现场面",
+  "warnings": {
+    "stageLastSeconds": 90,
+    "overallLastSeconds": 600
+  },
+  "stages": [
+    { "id": "intro", "name": "开场与破冰", "durationMinutes": 5 },
+    { "id": "resume-deep-dive", "name": "简历深挖", "durationMinutes": 15 },
+    { "id": "coding", "name": "编码题", "durationMinutes": 25 },
+    { "id": "system-design", "name": "系统设计", "durationMinutes": 25 },
+    { "id": "behavioral", "name": "行为面试", "durationMinutes": 10 },
+    { "id": "qa-close", "name": "候选人提问与总结", "durationMinutes": 10 }
+  ]
+}

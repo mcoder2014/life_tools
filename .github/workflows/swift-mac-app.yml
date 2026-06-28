@@ -1,0 +1,113 @@
+name: Swift Mac App
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/swift-mac-app.yml'
+      - 'mac_app/interview_timer/**'
+      - 'docs/interview_timer.md'
+      - 'docs/release.md'
+      - 'README.MD'
+      - 'AGENTS.md'
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+    paths:
+      - '.github/workflows/swift-mac-app.yml'
+      - 'mac_app/interview_timer/**'
+      - 'docs/interview_timer.md'
+      - 'docs/release.md'
+      - 'README.MD'
+      - 'AGENTS.md'
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    name: Test and build InterviewTimer
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Run Swift tests
+        working-directory: mac_app/interview_timer
+        run: swift test
+
+      - name: Build executable
+        working-directory: mac_app/interview_timer
+        run: swift build --product InterviewTimerApp
+
+      - name: Build app bundle
+        working-directory: mac_app/interview_timer
+        run: ./scripts/build_app.sh
+
+      - name: Verify app bundle
+        run: |
+          set -euo pipefail
+          test -x mac_app/interview_timer/dist/InterviewTimer.app/Contents/MacOS/InterviewTimer
+          test -f mac_app/interview_timer/dist/InterviewTimer.app/Contents/Resources/AppIcon.icns
+          plutil -p mac_app/interview_timer/dist/InterviewTimer.app/Contents/Info.plist
+
+  release:
+    name: Publish InterviewTimer release asset
+    if: github.ref_type == 'tag'
+    needs: test-build
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app bundle
+        working-directory: mac_app/interview_timer
+        run: ./scripts/build_app.sh
+
+      - name: Package unsigned app
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          asset_name="life_tools_interview_timer_macos_${tag}"
+          dist_dir="$PWD/dist"
+
+          rm -rf "$dist_dir"
+          mkdir -p "$dist_dir"
+          ditto -c -k --keepParent \
+            mac_app/interview_timer/dist/InterviewTimer.app \
+            "$dist_dir/${asset_name}.zip"
+
+          (
+            cd "$dist_dir"
+            shasum -a 256 "${asset_name}.zip" > "${asset_name}.sha256"
+          )
+
+          ls -lh "$dist_dir"
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          title="life_tools ${tag}"
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$title" --generate-notes \
+              || gh release view "$tag" >/dev/null
+          fi
+
+          gh release upload "$tag" \
+            "dist/life_tools_interview_timer_macos_${tag}.zip" \
+            "dist/life_tools_interview_timer_macos_${tag}.sha256" \
+            --clobber

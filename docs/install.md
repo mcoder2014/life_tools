@@ -8,6 +8,7 @@
 - Shell：`bash`。
 - Go 工具：需要本机有 `go`，版本以 `go.mod` 为准。
 - `video_subtitle`：需要 `python3`；运行时还需要 `ffmpeg` 和 `ffprobe`。
+- `InterviewTimer`：macOS 图形应用，需要 macOS 13+ 和 Swift/Apple 开发工具链，不由根目录 `install.sh` 默认安装。
 - 默认安装路径：可执行文件放到 `/usr/local/bin`，Python 工具文件放到 `/usr/local/lib/life_tools`。
 - 默认配置路径：`/etc/life_tools`，可用 `--config-dir` 改变安装脚本写入位置。
 
@@ -23,6 +24,7 @@
 | `codex_hook_notify` | `codex_hook_notify` | Go | 是 | `/etc/life_tools/codex_hook_notify.json` |
 | `video_subtitle` | `video_subtitle` | Python | 是 | `/etc/life_tools/video_subtitle.json` |
 | `file_share` | `file_share` | Go | 是 | `/etc/life_tools/file_share.json` |
+| `InterviewTimer` | `InterviewTimer.app` | SwiftPM macOS App | 否 | `~/Library/Application Support/InterviewTimer/` |
 
 ## 快速安装
 
@@ -79,6 +81,33 @@ file_share -config /etc/life_tools/file_share.json
 ```
 
 `file_share` 默认无认证，用于个人临时分享。不要把含敏感文件、隐藏文件或符号链接的目录暴露到不可信网络。
+
+## InterviewTimer
+
+`InterviewTimer` 是 macOS 面试悬浮计时 App，源码位于：
+
+```text
+mac_app/interview_timer
+```
+
+它不是命令行工具，不会被仓库根目录 `install.sh` 安装。构建和安装：
+
+```bash
+cd mac_app/interview_timer
+swift test
+./scripts/build_app.sh
+mkdir -p "$HOME/Applications"
+ditto dist/InterviewTimer.app "$HOME/Applications/InterviewTimer.app"
+open "$HOME/Applications/InterviewTimer.app"
+```
+
+模板目录：
+
+```text
+~/Library/Application Support/InterviewTimer/templates/
+```
+
+仓库内预置模板在 `mac_app/interview_timer/template-presets/`。完整说明见 [interview_timer.md](interview_timer.md)。
 
 ## video_subtitle
 
@@ -148,9 +177,10 @@ command -v retry_exec
 command -v codex_hook_notify
 command -v video_subtitle
 command -v file_share
+test -d "$HOME/Applications/InterviewTimer.app"
 ```
 
-常用帮助命令：
+常用帮助或启动命令：
 
 ```bash
 renameV1 -h
@@ -159,6 +189,7 @@ retry_exec --help
 codex_hook_notify -h
 video_subtitle --help
 file_share -h
+open "$HOME/Applications/InterviewTimer.app"
 ```
 
 ## 脚本行为
@@ -173,3 +204,4 @@ file_share -h
   - macOS：`~/Library/Logs/codex_hook_notify`
   - 其他系统：`~/.codex_hook_notify/logs`
 - `video_subtitle` 会复制 `video_subtitle/` 到 `<prefix>/lib/life_tools/video_subtitle`，再安装一个同名包装命令。
+- `InterviewTimer` 需要在 `mac_app/interview_timer` 下单独构建 `.app`，根目录安装脚本不会复制或覆盖 macOS 应用。

@@ -4,7 +4,7 @@
 
 ## 安装
 
-支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`、`file_share`。
+支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定命令行工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`、`file_share`。
 
 ```bash
 ./install.sh
@@ -33,11 +33,35 @@
 
 完整安装说明和 AI Agent 快速安装步骤见：[docs/install.md](docs/install.md)。
 
+macOS 图形应用不走默认安装脚本。`InterviewTimer` 放在 `mac_app/interview_timer/`，用于面试过程悬浮计时，构建和安装说明见：[docs/interview_timer.md](docs/interview_timer.md)。
+
 ## 发布包
 
-推送 `v*` tag 会通过 GitHub Actions 自动构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包和 Emby 插件包。发布流程和资产说明见：[docs/release.md](docs/release.md)。
+推送 `v*` tag 会通过 GitHub Actions 自动构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包、Emby 插件包和未签名的 `InterviewTimer.app` 包。发布流程和资产说明见：[docs/release.md](docs/release.md)。
 
 ## 哪些工具？
+
+## InterviewTimer
+
+`InterviewTimer` 是一个 macOS 面试悬浮计时 App。它用 JSON 模板描述电话面、编码面、系统设计面等不同流程，运行时显示当前环节剩余时间、整体剩余时间和提前/落后进度。
+
+源码位置：
+
+```bash
+mac_app/interview_timer
+```
+
+构建：
+
+```bash
+cd mac_app/interview_timer
+swift test
+swift build --product InterviewTimerApp
+./scripts/build_app.sh
+open dist/InterviewTimer.app
+```
+
+完整背景、模板格式、使用方式和安装方式见：[docs/interview_timer.md](docs/interview_timer.md)。
 
 ## retry_exec
 

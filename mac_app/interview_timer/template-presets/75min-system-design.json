@@ -1,0 +1,15 @@
+{
+  "templateName": "75min 系统设计面",
+  "warnings": {
+    "stageLastSeconds": 90,
+    "overallLastSeconds": 420
+  },
+  "stages": [
+    { "id": "intro", "name": "开场与目标说明", "durationMinutes": 5 },
+    { "id": "requirements", "name": "需求澄清", "durationMinutes": 10 },
+    { "id": "high-level-design", "name": "高层方案设计", "durationMinutes": 20 },
+    { "id": "deep-dive", "name": "核心模块深挖", "durationMinutes": 20 },
+    { "id": "trade-offs", "name": "扩展性与权衡", "durationMinutes": 10 },
+    { "id": "qa-close", "name": "候选人提问与收尾", "durationMinutes": 10 }
+  ]
+}

@@ -101,3 +101,12 @@ renameV1/tmp/
 # .NET build artifacts
 **/bin/
 **/obj/
+
+# SwiftPM and macOS app build artifacts
+mac_app/**/.build/
+mac_app/**/.swiftpm/
+mac_app/**/dist/
+mac_app/**/*.xcodeproj/
+mac_app/**/*.xcworkspace/
+*.app
+*.dSYM/
