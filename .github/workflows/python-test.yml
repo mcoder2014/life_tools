@@ -4,13 +4,13 @@ on:
   pull_request:
     paths:
       - '.github/workflows/python-test.yml'
-      - 'video_subtitle/**'
+      - 'cli/video_subtitle/**'
   push:
     branches:
       - master
     paths:
       - '.github/workflows/python-test.yml'
-      - 'video_subtitle/**'
+      - 'cli/video_subtitle/**'
 
 permissions:
   contents: read
@@ -36,19 +36,19 @@ jobs:
         shell: bash
         run: |
           set +e
-          python3 -m pip install -r video_subtitle/requirements.txt
+          python3 -m pip install -r cli/video_subtitle/requirements.txt
           install_status="$?"
           if [ "$install_status" -ne 0 ]; then
             echo "failed=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::python3 -m pip install -r video_subtitle/requirements.txt failed with exit code $install_status. Python tests were skipped. This workflow is advisory and does not block release packaging."
+            echo "::warning::python3 -m pip install -r cli/video_subtitle/requirements.txt failed with exit code $install_status. Python tests were skipped. This workflow is advisory and does not block release packaging."
             exit 0
           fi
 
-          python3 -m unittest video_subtitle/video_subtitle_test.py 2>&1 | tee python-test.log
+          python3 -m unittest cli/video_subtitle/video_subtitle_test.py 2>&1 | tee python-test.log
           status="${PIPESTATUS[0]}"
           if [ "$status" -ne 0 ]; then
             echo "failed=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::python3 -m unittest video_subtitle/video_subtitle_test.py failed with exit code $status. This workflow is advisory and does not block release packaging."
+            echo "::warning::python3 -m unittest cli/video_subtitle/video_subtitle_test.py failed with exit code $status. This workflow is advisory and does not block release packaging."
           else
             echo "failed=false" >> "$GITHUB_OUTPUT"
           fi
@@ -59,4 +59,4 @@ jobs:
         run: |
           echo '## Python test reminder' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
-          echo '`python3 -m unittest video_subtitle/video_subtitle_test.py` failed. This workflow is advisory and does not block release packaging.' >> "$GITHUB_STEP_SUMMARY"
+          echo '`python3 -m unittest cli/video_subtitle/video_subtitle_test.py` failed. This workflow is advisory and does not block release packaging.' >> "$GITHUB_STEP_SUMMARY"

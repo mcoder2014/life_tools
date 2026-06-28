@@ -2,7 +2,7 @@
 
 `InterviewTimer` 是一个 macOS 悬浮计时 App，用于主持面试时控制节奏。它不是命令行工具，也不进入根目录 `install.sh` 的默认安装集合。
 
-![InterviewTimer 图标](../mac_app/interview_timer/assets/app-icon-source.png)
+![InterviewTimer 图标](../../gui/interview_timer/assets/app-icon-source.png)
 
 ## 背景
 
@@ -13,7 +13,7 @@
 ## 代码位置
 
 ```text
-mac_app/interview_timer/
+gui/interview_timer/
 ```
 
 | 路径 | 作用 |
@@ -37,6 +37,31 @@ mac_app/interview_timer/
 | 模板切换 | 菜单栏可打开模板文件、打开模板目录、重新加载、切换模板 |
 | 提醒 | 当前环节超时和整体超时时显示视觉状态，并在授权后发送 macOS 通知 |
 | 旧模板兼容 | 继续读取旧版单文件 `template.json`，不强制迁移 |
+
+## 核心流程
+
+```mermaid
+flowchart TD
+    A["App 启动"] --> B["创建 Application Support 目录"]
+    B --> C["加载 templates/*.json 和旧版 template.json"]
+    C --> D{"是否存在可用模板"}
+    D -->|是| E["恢复上次选中模板"]
+    D -->|否| F["写入默认模板"]
+    E --> G["创建 InterviewSession"]
+    F --> G
+    G --> H["显示悬浮面板"]
+    H --> I{"用户操作"}
+    I -->|开始| J["启动计时器"]
+    I -->|下一环节| K["推进当前 stage"]
+    I -->|切换模板| L["重新加载模板并重置 session"]
+    J --> M["更新当前环节和整体剩余时间"]
+    K --> M
+    L --> G
+    M --> N{"达到提醒阈值或超时"}
+    N -->|是| O["更新视觉状态并发送 macOS 通知"]
+    N -->|否| H
+    O --> H
+```
 
 ## 模板与数据文件
 
@@ -90,7 +115,7 @@ mac_app/interview_timer/
 
 ```bash
 mkdir -p "$HOME/Library/Application Support/InterviewTimer/templates"
-cp mac_app/interview_timer/template-presets/*.json "$HOME/Library/Application Support/InterviewTimer/templates/"
+cp gui/interview_timer/template-presets/*.json "$HOME/Library/Application Support/InterviewTimer/templates/"
 ```
 
 日常操作：
@@ -118,7 +143,7 @@ cp mac_app/interview_timer/template-presets/*.json "$HOME/Library/Application Su
 验证命令：
 
 ```bash
-cd mac_app/interview_timer
+cd gui/interview_timer
 swift test
 swift build --product InterviewTimerApp
 ./scripts/build_app.sh
@@ -136,7 +161,7 @@ swift build --product InterviewTimerApp
 本地用户安装：
 
 ```bash
-cd mac_app/interview_timer
+cd gui/interview_timer
 ./scripts/build_app.sh
 mkdir -p "$HOME/Applications"
 ditto dist/InterviewTimer.app "$HOME/Applications/InterviewTimer.app"
@@ -146,7 +171,7 @@ open "$HOME/Applications/InterviewTimer.app"
 也可以直接运行构建产物：
 
 ```bash
-open mac_app/interview_timer/dist/InterviewTimer.app
+open gui/interview_timer/dist/InterviewTimer.app
 ```
 
 注意事项：

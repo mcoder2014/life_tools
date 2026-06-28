@@ -49,7 +49,7 @@ MaxLogTailBytes=8192
 
 ```text
 ExecutablePath=/usr/bin/python3
-ExtraArgs=/path/to/life_tools/video_subtitle/video_subtitle.py
+ExtraArgs=/path/to/life_tools/cli/video_subtitle/video_subtitle.py
 ConfigPath=/etc/life_tools/video_subtitle.json
 ```
 
@@ -405,7 +405,7 @@ sudo -u emby /usr/local/bin/video_subtitle --help
 
 ```text
 ExecutablePath=/usr/bin/python3
-ExtraArgs=/path/to/life_tools/video_subtitle/video_subtitle.py
+ExtraArgs=/path/to/life_tools/cli/video_subtitle/video_subtitle.py
 ```
 
 ### 任务失败：媒体目录不能写

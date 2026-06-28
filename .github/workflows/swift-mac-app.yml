@@ -4,8 +4,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/swift-mac-app.yml'
-      - 'mac_app/interview_timer/**'
-      - 'docs/interview_timer.md'
+      - 'gui/interview_timer/**'
+      - 'docs/gui/interview_timer.md'
       - 'docs/release.md'
       - 'README.MD'
       - 'AGENTS.md'
@@ -16,8 +16,8 @@ on:
       - 'v*'
     paths:
       - '.github/workflows/swift-mac-app.yml'
-      - 'mac_app/interview_timer/**'
-      - 'docs/interview_timer.md'
+      - 'gui/interview_timer/**'
+      - 'docs/gui/interview_timer.md'
       - 'docs/release.md'
       - 'README.MD'
       - 'AGENTS.md'
@@ -39,23 +39,23 @@ jobs:
           xcodebuild -version
 
       - name: Run Swift tests
-        working-directory: mac_app/interview_timer
+        working-directory: gui/interview_timer
         run: swift test
 
       - name: Build executable
-        working-directory: mac_app/interview_timer
+        working-directory: gui/interview_timer
         run: swift build --product InterviewTimerApp
 
       - name: Build app bundle
-        working-directory: mac_app/interview_timer
+        working-directory: gui/interview_timer
         run: ./scripts/build_app.sh
 
       - name: Verify app bundle
         run: |
           set -euo pipefail
-          test -x mac_app/interview_timer/dist/InterviewTimer.app/Contents/MacOS/InterviewTimer
-          test -f mac_app/interview_timer/dist/InterviewTimer.app/Contents/Resources/AppIcon.icns
-          plutil -p mac_app/interview_timer/dist/InterviewTimer.app/Contents/Info.plist
+          test -x gui/interview_timer/dist/InterviewTimer.app/Contents/MacOS/InterviewTimer
+          test -f gui/interview_timer/dist/InterviewTimer.app/Contents/Resources/AppIcon.icns
+          plutil -p gui/interview_timer/dist/InterviewTimer.app/Contents/Info.plist
 
   release:
     name: Publish InterviewTimer release asset
@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build app bundle
-        working-directory: mac_app/interview_timer
+        working-directory: gui/interview_timer
         run: ./scripts/build_app.sh
 
       - name: Package unsigned app
@@ -83,7 +83,7 @@ jobs:
           rm -rf "$dist_dir"
           mkdir -p "$dist_dir"
           ditto -c -k --keepParent \
-            mac_app/interview_timer/dist/InterviewTimer.app \
+            gui/interview_timer/dist/InterviewTimer.app \
             "$dist_dir/${asset_name}.zip"
 
           (

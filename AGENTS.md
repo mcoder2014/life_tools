@@ -12,14 +12,19 @@
 
 ## 仓库结构
 
-- `renameV1/`：批量重命名命令行工具，入口是 `package main`。
-- `save_work/`：敏感词检测工具，构建产物名是 `check_keywords`。
-- `video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/video_subtitle.md`。
-- `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/emby_video_subtitle_plugin.md`。
-- `mac_app/`：macOS 图形应用集合；当前包含 `mac_app/interview_timer/`，说明见 `docs/interview_timer.md`。
-- `docs/`：项目文档，`video_subtitle` 的使用和维护说明在 `docs/video_subtitle.md`。
+- `cli/renameV1/`：批量重命名命令行工具，入口是 `package main`。
+- `cli/check_keywords/`：敏感词检测工具，构建产物名是 `check_keywords`。
+- `cli/retry_exec/`：命令失败重试和失败通知工具。
+- `cli/codex_hook_notify/`：Codex lifecycle hook 飞书提醒工具。
+- `cli/file_share/`：临时 HTTP 文件分享工具。
+- `cli/video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/cli/video_subtitle.md`。
+- `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/plugins/emby_video_subtitle.md`。
+- `gui/interview_timer/`：macOS 面试悬浮计时 GUI 应用，说明见 `docs/gui/interview_timer.md`。
+- `docs/cli/`：CLI 工具文档。
+- `docs/plugins/`：插件程序文档。
+- `docs/gui/`：GUI 程序文档。
 - `sample/life_tools/`：示例配置文件。
-- `renameV1/testData/`：`renameV1` 的测试数据，包含媒体文件、nfo、bif 等样例。
+- `cli/renameV1/testData/`：`renameV1` 的测试数据，包含媒体文件、nfo、bif 等样例。
 - `output/`：构建产物目录，不要把它当源码维护。
 
 没有 `Makefile`、`justfile` 或 `Taskfile.yml`。优先遵循 README 和现有脚本。
@@ -34,11 +39,11 @@
 
 该脚本会构建：
 
-- `./output/renameV1` from `./renameV1/...`
-- `./output/check_keywords` from `./save_work/...`
-- `./output/retry_exec` from `./retry_exec/...`
-- `./output/codex_hook_notify` from `./codex_hook_notify/...`
-- `./output/file_share` from `./file_share/...`
+- `./output/renameV1` from `./cli/renameV1/...`
+- `./output/check_keywords` from `./cli/check_keywords/...`
+- `./output/retry_exec` from `./cli/retry_exec/...`
+- `./output/codex_hook_notify` from `./cli/codex_hook_notify/...`
+- `./output/file_share` from `./cli/file_share/...`
 
 测试优先使用：
 
@@ -49,13 +54,13 @@ go test ./...
 也可以按包缩小范围：
 
 ```bash
-go test ./renameV1
-go test ./save_work
+go test ./cli/renameV1
+go test ./cli/check_keywords
 ```
 
 涉及代码、配置、依赖或构建脚本的改动，交付前必须跑相应测试或构建。纯文档改动不需要假装跑 Go 测试，但要检查 diff。
 
-macOS App 不走根目录 `build.sh`。修改 `mac_app/interview_timer` 时在该目录下验证：
+macOS App 不走根目录 `build.sh`。修改 `gui/interview_timer` 时在该目录下验证：
 
 ```bash
 swift test
@@ -79,7 +84,7 @@ swift build --product InterviewTimerApp
 
 - `-rename` 会调用 `os.Rename` 执行真实重命名。
 - 默认不要使用 `-skip_double_check`，除非测试环境可回滚。
-- 修改重命名逻辑前，优先用 `renameV1/testData/` 或临时副本验证。
+- 修改重命名逻辑前，优先用 `cli/renameV1/testData/` 或临时副本验证。
 - 不要直接在真实 NAS、媒体库、下载目录上试新逻辑。
 - 配置文件结构以 `ConfigRenameApp`、`ConfigRename`、`RenamePolicy` 为准。
 - `fileNames` 里的 `skip` 是占位语义，用来跳过集数，不是普通文件名。
@@ -87,27 +92,27 @@ swift build --product InterviewTimerApp
 
 ## `check_keywords` 规则
 
-`save_work` 目录构建出的命令叫 `check_keywords`。
+`cli/check_keywords` 目录构建出的命令叫 `check_keywords`。
 
 - 程序从 `stdin` 读取内容。
 - `PrepareContents` 只保留以 `+` 开头的行，适配 `git diff` 新增内容检查。
 - 默认配置路径是 `/etc/life_tools/check_keywords.json`。
 - 示例配置在 `sample/life_tools/check_keywords.json`。
-- git hook 示例在 `save_work/git-hooks/pre-commit`。
+- git hook 示例在 `cli/check_keywords/git-hooks/pre-commit`。
 
 不要把真实公司域名、内部仓库、密钥或敏感词写进仓库。示例只能保留假数据或公开无害字符串。
 
 ## `video_subtitle` 规则
 
-`video_subtitle` 是 Python 工具，不走 Go 构建入口。完整使用方式、缓存结构和排障流程见 `docs/video_subtitle.md`。
+`video_subtitle` 是 Python 工具，不走 Go 构建入口。完整使用方式、缓存结构和排障流程见 `docs/cli/video_subtitle.md`。
 
 - 真实配置默认在 `/etc/life_tools/video_subtitle.json`，示例配置在 `sample/life_tools/video_subtitle.json`。
 - 不要把 TOS、ASR、LLM、TMDB 的真实 key、token、预签名 URL 写入仓库或日志。
-- 修改 ASR、split、translation、缓存、CLI 参数时，同步更新 `docs/video_subtitle.md` 和 README 中的简要入口。
+- 修改 ASR、split、translation、缓存、CLI 参数时，同步更新 `docs/cli/video_subtitle.md` 和 README 中的简要入口。
 - 涉及 LLM 输出结构时，必须保留本地 JSON 校验和失败响应落盘，不能只信 prompt。
 - 修改 split 逻辑时，优先用已有 `utterances.json` 或离线 fake LLM 测试，不要直接从真实视频重新烧 ASR。
-- 交付前至少运行：`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest video_subtitle/video_subtitle_test.py`。
-- 如果改了 Python 文件，还要运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile video_subtitle/video_subtitle.py video_subtitle/video_subtitle_test.py video_subtitle/lib/*.py`。
+- 交付前至少运行：`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest cli/video_subtitle/video_subtitle_test.py`。
+- 如果改了 Python 文件，还要运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile cli/video_subtitle/video_subtitle.py cli/video_subtitle/video_subtitle_test.py cli/video_subtitle/lib/*.py`。
 
 
 ### `video_subtitle` 与 Emby 插件兼容性
@@ -153,7 +158,7 @@ emby_plugins/video_subtitle/install.sh --help
 ## Release Workflow 规则
 
 `.github/workflows/release.yml` 负责 tag 发布，不是普通 CI。修改发布流程时要同时关注 Go、Python `video_subtitle` 和 Emby 插件三类产物。
-`.github/workflows/swift-mac-app.yml` 负责 `mac_app/interview_timer` 的 Swift 单测、编译和未签名 `.app` 发布。
+`.github/workflows/swift-mac-app.yml` 负责 `gui/interview_timer` 的 Swift 单测、编译和未签名 `.app` 发布。
 
 - tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
 - Go 测试放在 `.github/workflows/go-test.yml`，Python 单元测试放在 `.github/workflows/python-test.yml`，测试失败只能写 GitHub warning 和 summary，不能让 reminder workflow 或 release workflow 失败。

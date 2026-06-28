@@ -15,7 +15,7 @@
 安装 Python 依赖：
 
 ```bash
-python3 -m pip install -r video_subtitle/requirements.txt
+python3 -m pip install -r cli/video_subtitle/requirements.txt
 ```
 
 也可以让安装脚本顺手安装 Python 依赖：
@@ -91,25 +91,25 @@ LLM 相关默认策略：
 
 ```mermaid
 flowchart TD
-    A[输入视频] --> B[确定 work_dir 和输出路径]
-    B --> C{ASR 缓存可用?}
-    C -->|是| D[读取 utterances.json]
-    C -->|否或 force-asr| E[ffmpeg 抽取音频]
-    E --> F[上传 TOS 并生成预签名 URL]
-    F --> G[提交并轮询火山 ASR]
-    G --> H[写入 asr_result.json 和 utterances.json]
-    D --> I[清洗 ASR words]
+    A["输入视频"] --> B["确定 work_dir 和输出路径"]
+    B --> C{"ASR 缓存可用?"}
+    C -->|是| D["读取 utterances.json"]
+    C -->|否或 force-asr| E["ffmpeg 抽取音频"]
+    E --> F["上传 TOS 并生成预签名 URL"]
+    F --> G["提交并轮询火山 ASR"]
+    G --> H["写入 asr_result.json 和 utterances.json"]
+    D --> I["清洗 ASR words"]
     H --> I
-    I --> J{可采用内嵌字幕?}
-    J -->|是| K[生成 subtitle_units.json]
-    J -->|否或 force-split| L[LLM 并发切分 ASR words]
-    L --> M[写入 split_chunks 和 subtitle_units.json]
-    K --> N{翻译缓存可用?}
+    I --> J{"可采用内嵌字幕?"}
+    J -->|是| K["生成 subtitle_units.json"]
+    J -->|否或 force-split| L["LLM 并发切分 ASR words"]
+    L --> M["写入 split_chunks 和 subtitle_units.json"]
+    K --> N{"翻译缓存可用?"}
     M --> N
-    N -->|是| O[读取 translations.json]
-    N -->|否或 force-translate| P[LLM 并发翻译]
-    P --> Q[写入 translations.json]
-    O --> R[生成 SRT]
+    N -->|是| O["读取 translations.json"]
+    N -->|否或 force-translate| P["LLM 并发翻译"]
+    P --> Q["写入 translations.json"]
+    O --> R["生成 SRT"]
     Q --> R
 ```
 
@@ -127,7 +127,7 @@ flowchart TD
 ## 项目结构
 
 ```text
-video_subtitle/
+cli/video_subtitle/
   video_subtitle.py          兼容旧命令的入口文件
   requirements.txt           Python 依赖
   video_subtitle_test.py     单元测试
@@ -219,7 +219,7 @@ sudo -u emby test -w /path/to/video/dir
 - `Permission denied: .../.video_subtitle_work`：Emby 服务用户不能写视频目录。
 - 页面任务提交成功但历史没有输出文件：先看插件任务历史的 `StderrTail`，再看视频目录 `.video_subtitle_work/*/progress.jsonl`。
 
-详细插件配置、Web 页面、Admin API 和本机排障记录见 [docs/emby_video_subtitle_plugin.md](emby_video_subtitle_plugin.md)。
+详细插件配置、Web 页面、Admin API 和本机排障记录见 [docs/plugins/emby_video_subtitle.md](../plugins/emby_video_subtitle.md)。
 
 ## 故障排查
 
@@ -262,16 +262,16 @@ PY
 只跑 Python 工具测试：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest video_subtitle/video_subtitle_test.py
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest cli/video_subtitle/video_subtitle_test.py
 ```
 
 编译检查：
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile \
-  video_subtitle/video_subtitle.py \
-  video_subtitle/video_subtitle_test.py \
-  video_subtitle/lib/*.py
+  cli/video_subtitle/video_subtitle.py \
+  cli/video_subtitle/video_subtitle_test.py \
+  cli/video_subtitle/lib/*.py
 ```
 
 Emby 插件核心和适配层验证：
@@ -286,7 +286,7 @@ emby_plugins/video_subtitle/install.sh --help
 CLI 入口检查：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 video_subtitle/video_subtitle.py --help
+PYTHONDONTWRITEBYTECODE=1 python3 cli/video_subtitle/video_subtitle.py --help
 ```
 
 仓库空白检查：
@@ -298,7 +298,7 @@ git diff --check
 涉及真实视频生成时，应优先用已有 ASR 缓存验证 split 和翻译：
 
 ```bash
-python3 video_subtitle/video_subtitle.py \
+python3 cli/video_subtitle/video_subtitle.py \
   --input /path/to/video.mkv \
   --yes \
   --force-split \

@@ -29,13 +29,13 @@ on:
       - '.github/workflows/release.yml'
       - '.github/workflows/go-test.yml'
       - '.github/workflows/python-test.yml'
-      - 'docs/release.md'
+      - 'docs/**'
       - 'README.MD'
       - 'AGENTS.md'
       - 'go.mod'
       - 'go.sum'
       - '**/*.go'
-      - 'video_subtitle/**'
+      - 'cli/video_subtitle/**'
       - 'emby_plugins/video_subtitle/**'
       - 'sample/life_tools/**'
   push:
@@ -45,7 +45,7 @@ on:
 
 `pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，Python 单元测试由 `.github/workflows/python-test.yml` 单独执行。测试失败时 reminder workflow 只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
 
-`swift-mac-app.yml` 使用 `macos-latest` runner。PR 和 `master` 推送会验证 `mac_app/interview_timer` 的 Swift 单测、可执行产物构建和 `.app` 打包；`v*` tag 会额外上传未签名的 `InterviewTimer.app` zip。
+`swift-mac-app.yml` 使用 `macos-latest` runner。PR 和 `master` 推送会验证 `gui/interview_timer` 的 Swift 单测、可执行产物构建和 `.app` 打包；`v*` tag 会额外上传未签名的 `InterviewTimer.app` zip。
 
 ## 发布操作流程
 
@@ -92,7 +92,7 @@ bin/codex_hook_notify
 bin/file_share
 install.sh
 sample/life_tools/*.json
-docs/*.md
+docs/**
 ```
 
 `video_subtitle` 发布包包含 Python 源码、prompts、`requirements.txt`、示例配置和文档。它不是纯二进制工具，使用前仍需要 Python 依赖、ffmpeg、TOS、ASR、LLM 配置。
@@ -111,14 +111,14 @@ LifeTools.Emby.VideoSubtitle.Emby.dll
 InterviewTimer.app
 ```
 
-该包由 `mac_app/interview_timer/scripts/build_app.sh` 生成，当前不做代码签名和 notarization。macOS 首次打开时可能需要用户在系统安全设置中手动允许。
+该包由 `gui/interview_timer/scripts/build_app.sh` 生成，当前不做代码签名和 notarization。macOS 首次打开时可能需要用户在系统安全设置中手动允许。
 
 ## CI 验证
 
 发布前 release workflow 会运行：
 
 ```bash
-python3 -m py_compile video_subtitle/video_subtitle.py video_subtitle/video_subtitle_test.py video_subtitle/lib/*.py
+python3 -m py_compile cli/video_subtitle/video_subtitle.py cli/video_subtitle/video_subtitle_test.py cli/video_subtitle/lib/*.py
 dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
 dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
 ```
@@ -126,7 +126,7 @@ dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --conf
 Swift macOS App workflow 会运行：
 
 ```bash
-cd mac_app/interview_timer
+cd gui/interview_timer
 swift test
 swift build --product InterviewTimerApp
 ./scripts/build_app.sh
@@ -136,7 +136,7 @@ swift build --product InterviewTimerApp
 
 ```bash
 go test ./...
-python3 -m unittest video_subtitle/video_subtitle_test.py
+python3 -m unittest cli/video_subtitle/video_subtitle_test.py
 ```
 
 这些 workflow 失败时只写 GitHub warning 和 summary，不阻塞 release workflow，也不阻止 tag 发布资产。

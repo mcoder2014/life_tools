@@ -6,13 +6,13 @@ on:
       - '.github/workflows/release.yml'
       - '.github/workflows/go-test.yml'
       - '.github/workflows/python-test.yml'
-      - 'docs/release.md'
+      - 'docs/**'
       - 'README.MD'
       - 'AGENTS.md'
       - 'go.mod'
       - 'go.sum'
       - '**/*.go'
-      - 'video_subtitle/**'
+      - 'cli/video_subtitle/**'
       - 'emby_plugins/video_subtitle/**'
       - 'sample/life_tools/**'
   push:
@@ -54,9 +54,9 @@ jobs:
       - name: Compile video_subtitle Python files
         run: |
           python3 -m py_compile \
-            video_subtitle/video_subtitle.py \
-            video_subtitle/video_subtitle_test.py \
-            video_subtitle/lib/*.py
+            cli/video_subtitle/video_subtitle.py \
+            cli/video_subtitle/video_subtitle_test.py \
+            cli/video_subtitle/lib/*.py
 
       - name: Run Emby plugin tests
         run: dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
@@ -85,16 +85,15 @@ jobs:
             out="$tmp/$pkg"
             mkdir -p "$out/bin" "$out/sample/life_tools" "$out/docs"
 
-            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/renameV1" ./renameV1/...
-            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/check_keywords" ./save_work/...
-            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/retry_exec" ./retry_exec/...
-            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/codex_hook_notify" ./codex_hook_notify/...
-            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/file_share" ./file_share/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/renameV1" ./cli/renameV1/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/check_keywords" ./cli/check_keywords/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/retry_exec" ./cli/retry_exec/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/codex_hook_notify" ./cli/codex_hook_notify/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/file_share" ./cli/file_share/...
 
             cp README.MD install.sh "$out/"
             cp sample/life_tools/*.json "$out/sample/life_tools/"
-            cp docs/install.md docs/codex_hook_notify.md docs/file_share.md "$out/docs/"
-            cp docs/release.md "$out/docs/"
+            cp -R docs/. "$out/docs/"
 
             (
               cd "$tmp"
@@ -105,10 +104,10 @@ jobs:
           video_pkg="life_tools_video_subtitle_source_${tag}"
           video_out="$tmp/$video_pkg"
           mkdir -p "$video_out/video_subtitle" "$video_out/sample/life_tools" "$video_out/docs"
-          cp -R video_subtitle/*.py video_subtitle/lib video_subtitle/prompts video_subtitle/requirements.txt "$video_out/video_subtitle/"
+          cp -R cli/video_subtitle/*.py cli/video_subtitle/lib cli/video_subtitle/prompts cli/video_subtitle/requirements.txt "$video_out/video_subtitle/"
           cp sample/life_tools/video_subtitle.json "$video_out/sample/life_tools/"
           cp README.MD install.sh "$video_out/"
-          cp docs/video_subtitle.md docs/release.md "$video_out/docs/"
+          cp -R docs/. "$video_out/docs/"
           (
             cd "$tmp"
             zip -qr "$dist/$video_pkg.zip" "$video_pkg"
@@ -120,7 +119,7 @@ jobs:
           mkdir -p "$plugin_out" "$plugin_out/docs" "$plugin_out/emby_plugins/video_subtitle"
           cp emby_plugins/video_subtitle/src/LifeTools.Emby.VideoSubtitle.Emby/bin/Release/netstandard2.0/LifeTools.Emby.VideoSubtitle.Emby.dll "$plugin_out/"
           cp emby_plugins/video_subtitle/install.sh emby_plugins/video_subtitle/build.sh "$plugin_out/emby_plugins/video_subtitle/"
-          cp docs/emby_video_subtitle_plugin.md docs/video_subtitle.md docs/release.md "$plugin_out/docs/"
+          cp -R docs/. "$plugin_out/docs/"
           {
             echo '# Life Tools Emby Video Subtitle Plugin'
             echo
