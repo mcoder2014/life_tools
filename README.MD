@@ -33,6 +33,10 @@
 
 完整安装说明和 AI Agent 快速安装步骤见：[docs/install.md](docs/install.md)。
 
+## 发布包
+
+推送 `v*` tag 会通过 GitHub Actions 自动构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包和 Emby 插件包。发布流程和资产说明见：[docs/release.md](docs/release.md)。
+
 ## 哪些工具？
 
 ## retry_exec
