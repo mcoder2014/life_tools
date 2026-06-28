@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'docs/release.md'
+      - 'README.MD'
+      - 'AGENTS.md'
+      - 'go.mod'
+      - 'go.sum'
+      - '**/*.go'
+      - 'video_subtitle/**'
+      - 'emby_plugins/video_subtitle/**'
+      - 'sample/life_tools/**'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release assets
+    runs-on: ubuntu-latest
+    env:
+      GO_VERSION: '1.18.x'
+      DOTNET_VERSION: '8.0.x'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Run video_subtitle tests
+        run: |
+          python3 -m unittest video_subtitle/video_subtitle_test.py
+          python3 -m py_compile \
+            video_subtitle/video_subtitle.py \
+            video_subtitle/video_subtitle_test.py \
+            video_subtitle/lib/*.py
+
+      - name: Run Emby plugin tests
+        run: dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
+
+      - name: Build release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE:-}" != "tag" ]; then
+            tag="v0.0.0-ci"
+          fi
+          root="$PWD"
+          dist="$root/dist"
+          tmp="$root/.release-tmp"
+          platforms=(linux/amd64 linux/arm64 darwin/amd64 darwin/arm64)
+
+          rm -rf "$dist" "$tmp"
+          mkdir -p "$dist" "$tmp"
+
+          for platform in "${platforms[@]}"; do
+            os="${platform%/*}"
+            arch="${platform#*/}"
+            pkg="life_tools_${os}_${arch}_${tag}"
+            out="$tmp/$pkg"
+            mkdir -p "$out/bin" "$out/sample/life_tools" "$out/docs"
+
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/renameV1" ./renameV1/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/check_keywords" ./save_work/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/retry_exec" ./retry_exec/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/codex_hook_notify" ./codex_hook_notify/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/file_share" ./file_share/...
+
+            cp README.MD install.sh "$out/"
+            cp sample/life_tools/*.json "$out/sample/life_tools/"
+            cp docs/install.md docs/codex_hook_notify.md docs/file_share.md "$out/docs/"
+            cp docs/release.md "$out/docs/"
+
+            (
+              cd "$tmp"
+              zip -qr "$dist/$pkg.zip" "$pkg"
+            )
+          done
+
+          video_pkg="life_tools_video_subtitle_source_${tag}"
+          video_out="$tmp/$video_pkg"
+          mkdir -p "$video_out/video_subtitle" "$video_out/sample/life_tools" "$video_out/docs"
+          cp -R video_subtitle/*.py video_subtitle/lib video_subtitle/prompts video_subtitle/requirements.txt "$video_out/video_subtitle/"
+          cp sample/life_tools/video_subtitle.json "$video_out/sample/life_tools/"
+          cp README.MD install.sh "$video_out/"
+          cp docs/video_subtitle.md docs/release.md "$video_out/docs/"
+          (
+            cd "$tmp"
+            zip -qr "$dist/$video_pkg.zip" "$video_pkg"
+          )
+
+          dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
+          plugin_pkg="life_tools_emby_video_subtitle_plugin_${tag}"
+          plugin_out="$tmp/$plugin_pkg"
+          mkdir -p "$plugin_out" "$plugin_out/docs" "$plugin_out/emby_plugins/video_subtitle"
+          cp emby_plugins/video_subtitle/src/LifeTools.Emby.VideoSubtitle.Emby/bin/Release/netstandard2.0/LifeTools.Emby.VideoSubtitle.Emby.dll "$plugin_out/"
+          cp emby_plugins/video_subtitle/install.sh emby_plugins/video_subtitle/build.sh "$plugin_out/emby_plugins/video_subtitle/"
+          cp docs/emby_video_subtitle_plugin.md docs/video_subtitle.md docs/release.md "$plugin_out/docs/"
+          {
+            echo '# Life Tools Emby Video Subtitle Plugin'
+            echo
+            echo 'Copy only `LifeTools.Emby.VideoSubtitle.Emby.dll` into the Emby plugins directory, then restart Emby.'
+            echo
+            echo 'Default local install:'
+            echo
+            echo '```bash'
+            echo 'sudo install -m 0644 LifeTools.Emby.VideoSubtitle.Emby.dll /var/lib/emby/plugins/LifeTools.Emby.VideoSubtitle.Emby.dll'
+            echo 'sudo systemctl restart emby-server'
+            echo '```'
+            echo
+            echo 'The plugin calls `/usr/local/bin/video_subtitle` by default. Install and configure `video_subtitle` before submitting jobs.'
+          } > "$plugin_out/README.md"
+          (
+            cd "$tmp"
+            zip -qr "$dist/$plugin_pkg.zip" "$plugin_pkg"
+          )
+
+          (
+            cd "$dist"
+            sha256sum *.zip > checksums.txt
+          )
+
+          ls -lh "$dist"
+
+      - name: Create GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          title="life_tools ${tag}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.zip dist/checksums.txt --clobber
+          else
+            gh release create "$tag" dist/*.zip dist/checksums.txt --title "$title" --generate-notes
+          fi

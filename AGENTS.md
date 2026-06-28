@@ -139,6 +139,18 @@ emby_plugins/video_subtitle/install.sh --help
 - 只改和任务直接相关的文件。
 - 不使用 `git reset --hard`、`git checkout --`、批量删除或其他破坏性命令，除非用户明确要求。
 
+
+## Release Workflow 规则
+
+`.github/workflows/release.yml` 负责 tag 发布，不是普通 CI。修改发布流程时要同时关注 Go、Python `video_subtitle` 和 Emby 插件三类产物。
+
+- tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
+- Go 二进制包只放稳定 CLI 工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`file_share`。
+- `video_subtitle` 只能按源码包发布，不能宣传成免依赖二进制；它仍依赖 Python、ffmpeg、TOS、ASR 和 LLM 配置。
+- Emby 插件包只放 `LifeTools.Emby.VideoSubtitle.Emby.dll` 和文档，不要把 `MediaBrowser.*`、`Emby.*` 或核心库 DLL 打进插件发布包。
+- 修改发布包内容时同步更新 `docs/release.md` 和 README 的发布入口。
+- 发布 workflow 需要 `permissions: contents: write`，不要扩大到无关权限。
+
 ## 文档规则
 
 - README 已经是中文，新增仓库文档优先中文。
