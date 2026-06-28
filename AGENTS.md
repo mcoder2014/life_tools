@@ -153,12 +153,14 @@ emby_plugins/video_subtitle/install.sh --help
 ## Release Workflow 规则
 
 `.github/workflows/release.yml` 负责 tag 发布，不是普通 CI。修改发布流程时要同时关注 Go、Python `video_subtitle` 和 Emby 插件三类产物。
+`.github/workflows/swift-mac-app.yml` 负责 `mac_app/interview_timer` 的 Swift 单测、编译和未签名 `.app` 发布。
 
 - tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
 - Go 测试放在 `.github/workflows/go-test.yml`，Python 单元测试放在 `.github/workflows/python-test.yml`，测试失败只能写 GitHub warning 和 summary，不能让 reminder workflow 或 release workflow 失败。
 - Go 二进制包只放稳定 CLI 工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`file_share`。
 - `video_subtitle` 只能按源码包发布，不能宣传成免依赖二进制；它仍依赖 Python、ffmpeg、TOS、ASR 和 LLM 配置。
 - Emby 插件包只放 `LifeTools.Emby.VideoSubtitle.Emby.dll` 和文档，不要把 `MediaBrowser.*`、`Emby.*` 或核心库 DLL 打进插件发布包。
+- `InterviewTimer` macOS App 只在 macOS runner 上构建，tag 发布包为未签名的 `InterviewTimer.app` zip，不要把它塞进根目录 `install.sh` 或 Go 二进制发布包。
 - 修改发布包内容时同步更新 `docs/release.md` 和 README 的发布入口。
 - 发布 workflow 需要 `permissions: contents: write`，不要扩大到无关权限。
 

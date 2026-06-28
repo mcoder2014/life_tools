@@ -37,7 +37,7 @@ macOS 图形应用不走默认安装脚本。`InterviewTimer` 放在 `mac_app/in
 
 ## 发布包
 
-推送 `v*` tag 会通过 GitHub Actions 自动构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包和 Emby 插件包。发布流程和资产说明见：[docs/release.md](docs/release.md)。
+推送 `v*` tag 会通过 GitHub Actions 自动构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包、Emby 插件包和未签名的 `InterviewTimer.app` 包。发布流程和资产说明见：[docs/release.md](docs/release.md)。
 
 ## 哪些工具？
 

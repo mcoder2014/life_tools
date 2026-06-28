@@ -154,9 +154,41 @@ open mac_app/interview_timer/dist/InterviewTimer.app
 | 项 | 说明 |
 |---|---|
 | 签名 | 当前构建脚本不做代码签名和 notarization |
-| 发布包 | 当前 GitHub Release 资产不包含 `InterviewTimer.app` |
+| 发布包 | 推送 `v*` tag 时会发布未签名的 `life_tools_interview_timer_macos_<tag>.zip` |
 | 配置迁移 | 旧版 `template.json` 继续生效，新增模板建议放到 `templates/` |
 | 生成物 | `.build/` 和 `dist/` 是本地构建产物，不纳入版本控制 |
+
+## 发布
+
+Swift macOS App 使用独立 GitHub Actions workflow：
+
+```text
+.github/workflows/swift-mac-app.yml
+```
+
+PR 和 `master` 推送会运行：
+
+```bash
+swift test
+swift build --product InterviewTimerApp
+./scripts/build_app.sh
+```
+
+推送 `v*` tag 时，workflow 会在 GitHub Release 中上传：
+
+```text
+life_tools_interview_timer_macos_<tag>.zip
+life_tools_interview_timer_macos_<tag>.sha256
+```
+
+该 zip 只包含未签名的 `InterviewTimer.app`。安装方式：
+
+```bash
+unzip life_tools_interview_timer_macos_<tag>.zip
+mkdir -p "$HOME/Applications"
+ditto InterviewTimer.app "$HOME/Applications/InterviewTimer.app"
+open "$HOME/Applications/InterviewTimer.app"
+```
 
 ## 维护边界
 
