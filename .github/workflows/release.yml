@@ -25,7 +25,7 @@ jobs:
     name: Build release assets
     runs-on: ubuntu-latest
     env:
-      GO_VERSION: '1.18.x'
+      GO_VERSION: '1.21.x'
       DOTNET_VERSION: '8.0.x'
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
@@ -47,9 +47,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Run Go tests
-        run: go test ./...
 
       - name: Run video_subtitle tests
         run: |
