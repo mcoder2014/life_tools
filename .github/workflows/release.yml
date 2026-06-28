@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GO_VERSION: '1.21.x'
+      PYTHON_VERSION: '3.12.x'
       DOTNET_VERSION: '8.0.x'
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
@@ -43,7 +44,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4

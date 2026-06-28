@@ -4,12 +4,12 @@
 
 ## 触发方式
 
-从最新 `master` 创建 tag 并推送：
+从最新 `master` 创建 tag 并推送。只有推送匹配 `v*` 的 tag 才会创建或更新 GitHub Release，PR 上的 release workflow 只做 dry-run：
 
 ```bash
-git checkout master
+git switch master
 git pull --ff-only origin master
-git tag v0.0.3
+git tag -a v0.0.3 -m "life_tools v0.0.3"
 git push origin v0.0.3
 ```
 
@@ -42,7 +42,25 @@ on:
       - 'v*'
 ```
 
-`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，Python 单元测试由 `.github/workflows/python-test.yml` 单独执行，两者都在测试 step 上配置 `continue-on-error: true`。
+`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，Python 单元测试由 `.github/workflows/python-test.yml` 单独执行。测试失败时 reminder workflow 只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
+
+## 发布操作流程
+
+1. 先把发布相关 PR 合并到 `master`。
+2. 在本地同步最新 `master`，创建新的 `v*` tag，并推送到远端。不要复用已经发布过的 tag；新版本用新 tag。
+3. 打开 GitHub Actions 的 `Release` workflow，确认 tag 触发的 `Build release assets` job 成功。
+4. 打开 GitHub 仓库的 Releases 页面，进入对应 tag，例如 `v0.0.3`，下载需要的 zip。
+
+也可以用 GitHub CLI 下载产物：
+
+```bash
+gh release view v0.0.3 --web
+gh release download v0.0.3 --dir /tmp/life_tools_v0.0.3
+cd /tmp/life_tools_v0.0.3
+sha256sum -c checksums.txt
+```
+
+如果 tag push 后没有出现 Release，先检查 tag 名是否以 `v` 开头，再检查 Actions 里的 `Release` workflow 日志。
 
 ## 发布包
 
@@ -98,7 +116,7 @@ go test ./...
 python3 -m unittest video_subtitle/video_subtitle_test.py
 ```
 
-这些 workflow 不阻塞 release workflow。
+这些 workflow 失败时只写 GitHub warning 和 summary，不阻塞 release workflow，也不阻止 tag 发布资产。
 
 ## 权限
 

@@ -145,7 +145,7 @@ emby_plugins/video_subtitle/install.sh --help
 `.github/workflows/release.yml` 负责 tag 发布，不是普通 CI。修改发布流程时要同时关注 Go、Python `video_subtitle` 和 Emby 插件三类产物。
 
 - tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
-- Go 测试放在 `.github/workflows/go-test.yml`，Python 单元测试放在 `.github/workflows/python-test.yml`，在测试 step 上用 `continue-on-error: true` 做提醒，不要阻塞 release workflow。
+- Go 测试放在 `.github/workflows/go-test.yml`，Python 单元测试放在 `.github/workflows/python-test.yml`，测试失败只能写 GitHub warning 和 summary，不能让 reminder workflow 或 release workflow 失败。
 - Go 二进制包只放稳定 CLI 工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`file_share`。
 - `video_subtitle` 只能按源码包发布，不能宣传成免依赖二进制；它仍依赖 Python、ffmpeg、TOS、ASR 和 LLM 配置。
 - Emby 插件包只放 `LifeTools.Emby.VideoSubtitle.Emby.dll` 和文档，不要把 `MediaBrowser.*`、`Emby.*` 或核心库 DLL 打进插件发布包。

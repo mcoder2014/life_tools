@@ -20,6 +20,7 @@ jobs:
     name: Python test reminder
     runs-on: ubuntu-latest
     env:
+      PYTHON_VERSION: '3.12.x'
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Checkout
@@ -28,15 +29,33 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Run video_subtitle tests
-        id: python-test
-        continue-on-error: true
-        run: python3 -m unittest video_subtitle/video_subtitle_test.py
+      - name: Run video_subtitle tests as reminder
+        id: python_test
+        shell: bash
+        run: |
+          set +e
+          python3 -m pip install -r video_subtitle/requirements.txt
+          install_status="$?"
+          if [ "$install_status" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::python3 -m pip install -r video_subtitle/requirements.txt failed with exit code $install_status. Python tests were skipped. This workflow is advisory and does not block release packaging."
+            exit 0
+          fi
+
+          python3 -m unittest video_subtitle/video_subtitle_test.py 2>&1 | tee python-test.log
+          status="${PIPESTATUS[0]}"
+          if [ "$status" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::python3 -m unittest video_subtitle/video_subtitle_test.py failed with exit code $status. This workflow is advisory and does not block release packaging."
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
 
       - name: Write reminder summary
-        if: steps.python-test.outcome == 'failure'
+        if: steps.python_test.outputs.failed == 'true'
         run: |
           echo '## Python test reminder' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
