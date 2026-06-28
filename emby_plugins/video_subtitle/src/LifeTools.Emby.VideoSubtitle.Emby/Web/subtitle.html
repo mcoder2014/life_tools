@@ -1,0 +1,87 @@
+<div id="lifeToolsVideoSubtitlePage" is="emby-scroller" class="view flex flex-direction-column scrollFrameY flex-grow lifeToolsVideoSubtitlePage" data-horizontal="false" data-forcescrollbar="true" data-centerfocus="true" data-bindheader="true" data-controller="__plugin/LifeToolsVideoSubtitleJsV11" data-title="字幕生成">
+    <div class="ltvs-content scrollSlider flex-grow flex-direction-column">
+        <style>
+            .lifeToolsVideoSubtitlePage{box-sizing:border-box;clear:both;width:100%}
+            .lifeToolsVideoSubtitlePage *{box-sizing:border-box}
+            .lifeToolsVideoSubtitlePage .ltvs-content{width:100%;max-width:1200px;min-width:0;margin:0 auto;padding:1rem}
+            .lifeToolsVideoSubtitlePage .ltvs-layout{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:1.5rem;align-items:start}
+            .lifeToolsVideoSubtitlePage .ltvs-section{margin:0 0 1.75rem}
+            .lifeToolsVideoSubtitlePage .ltvs-section h2{margin:.2rem 0 1rem;font-size:1.25rem;font-weight:600}
+            .lifeToolsVideoSubtitlePage .ltvs-fields{display:grid;gap:.9rem}
+            .lifeToolsVideoSubtitlePage label{display:block;margin:0 0 .25rem;font-weight:500}
+            .lifeToolsVideoSubtitlePage input[type=text],.lifeToolsVideoSubtitlePage input[type=number],.lifeToolsVideoSubtitlePage textarea{box-sizing:border-box;width:100%}
+            .lifeToolsVideoSubtitlePage textarea{min-height:7rem;resize:vertical}
+            .lifeToolsVideoSubtitlePage .ltvs-actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-top:1rem}
+            .lifeToolsVideoSubtitlePage .ltvs-plain-button{min-height:2.4rem;padding:.45rem 1rem;border:1px solid rgba(255,255,255,.32);border-radius:4px;background:rgba(255,255,255,.08);color:inherit;cursor:pointer}
+            .lifeToolsVideoSubtitlePage .ltvs-plain-button:hover{background:rgba(255,255,255,.16)}
+            .lifeToolsVideoSubtitlePage .ltvs-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem 1rem;margin-top:.8rem}
+            .lifeToolsVideoSubtitlePage .ltvs-tree{border:1px solid rgba(255,255,255,.18);min-height:20rem;max-height:34rem;overflow:auto;padding:.35rem}
+            .lifeToolsVideoSubtitlePage .ltvs-tree-row{display:grid;grid-template-columns:2rem 1fr auto;gap:.35rem;align-items:center;min-height:2.4rem;border-bottom:1px solid rgba(255,255,255,.08)}
+            .lifeToolsVideoSubtitlePage .ltvs-tree-row:last-child{border-bottom:0}
+            .lifeToolsVideoSubtitlePage .ltvs-tree-row button{min-width:2rem}
+            .lifeToolsVideoSubtitlePage .ltvs-tree-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+            .lifeToolsVideoSubtitlePage .ltvs-tree-meta{opacity:.7;font-size:.85rem;margin-left:.4rem}
+            .lifeToolsVideoSubtitlePage .ltvs-selected{margin-top:.75rem;opacity:.85}
+            .lifeToolsVideoSubtitlePage .ltvs-message{min-height:1.4rem;margin:.75rem 0;color:#ddd}
+            .lifeToolsVideoSubtitlePage .ltvs-error{color:#ff9a9a}
+            .lifeToolsVideoSubtitlePage .ltvs-success{color:#9be59b}
+            .lifeToolsVideoSubtitlePage .ltvs-jobs{width:100%;border-collapse:collapse;font-size:.92rem}
+            .lifeToolsVideoSubtitlePage .ltvs-jobs th,.lifeToolsVideoSubtitlePage .ltvs-jobs td{text-align:left;padding:.5rem;border-bottom:1px solid rgba(255,255,255,.1);vertical-align:top}
+            .lifeToolsVideoSubtitlePage .ltvs-path{max-width:24rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+            @media (max-width: 900px){.lifeToolsVideoSubtitlePage .ltvs-layout{grid-template-columns:1fr}.lifeToolsVideoSubtitlePage .ltvs-tree{max-height:24rem}}
+        </style>
+
+        <form class="ltvs-section ltvs-config-form">
+            <h2>插件配置</h2>
+            <div class="ltvs-fields">
+                <div><label for="ltvsExecutablePath">video_subtitle 路径</label><input id="ltvsExecutablePath" is="emby-input" type="text" autocomplete="off"></div>
+                <div><label for="ltvsConfigPath">life_tools 配置文件</label><input id="ltvsConfigPath" is="emby-input" type="text" autocomplete="off"></div>
+                <div><label for="ltvsDefaultSourceLanguage">默认源语言</label><input id="ltvsDefaultSourceLanguage" is="emby-input" type="text" autocomplete="off"></div>
+                <div><label for="ltvsExtraArgs">额外参数，每行一个</label><textarea id="ltvsExtraArgs"></textarea></div>
+                <div><label for="ltvsMaxLogTailBytes">保留日志字节数</label><input id="ltvsMaxLogTailBytes" is="emby-input" type="number" min="1024" step="1024"></div>
+            </div>
+            <div class="ltvs-actions">
+                <button is="emby-button" type="submit" class="raised button-submit"><span>保存配置</span></button>
+                <span class="ltvs-message ltvs-config-message" data-ltvs-message="config"></span>
+            </div>
+        </form>
+
+        <div class="ltvs-layout">
+            <section class="ltvs-section">
+                <h2>媒体库选择</h2>
+                <div class="ltvs-tree" id="ltvsTree"></div>
+                <div class="ltvs-selected" id="ltvsSelectedCount">已选择 0 个视频</div>
+            </section>
+
+            <section class="ltvs-section">
+                <h2>生成字幕</h2>
+                <div class="ltvs-fields">
+                    <div><label for="ltvsManualPaths">手动视频路径，每行一个</label><textarea id="ltvsManualPaths" placeholder="/media/movie/example.mkv"></textarea></div>
+                    <div><label for="ltvsSourceLanguage">本次源语言</label><input id="ltvsSourceLanguage" is="emby-input" type="text" autocomplete="off"></div>
+                </div>
+                <div class="ltvs-options">
+                    <label><input id="ltvsForceAsr" type="checkbox" checked> 强制 ASR</label>
+                    <label><input id="ltvsForceSplit" type="checkbox" checked> 强制拆分</label>
+                    <label><input id="ltvsForceTranslate" type="checkbox" checked> 强制翻译</label>
+                    <label><input id="ltvsForceRequeue" type="checkbox"> 重新入队</label>
+                </div>
+                <div class="ltvs-actions">
+                    <button is="emby-button" type="button" class="raised button-submit" id="ltvsSubmit"><span>提交批量任务</span></button>
+                    <span class="ltvs-message ltvs-submit-message" data-ltvs-message="submit"></span>
+                </div>
+            </section>
+        </div>
+
+        <section class="ltvs-section">
+            <div class="ltvs-actions">
+                <h2 style="margin-right:auto">历史任务</h2>
+                <button type="button" class="ltvs-plain-button" id="ltvsRefreshJobs">刷新</button>
+            </div>
+            <div class="ltvs-message ltvs-jobs-message" data-ltvs-message="jobs"></div>
+            <table class="ltvs-jobs">
+                <thead><tr><th>状态</th><th>视频</th><th>输出</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody id="ltvsJobsBody"><tr><td colspan="5">暂无数据</td></tr></tbody>
+            </table>
+        </section>
+    </div>
+</div>

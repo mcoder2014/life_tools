@@ -195,7 +195,7 @@ Codex 生命周期提醒工具。程序从 stdin 读取 Codex hook JSON，根据
 
 给单个视频生成简体中文字幕的 Python 工具。它会抽取音频、调用火山 ASR、用 LLM 做字幕切分和翻译，并在视频同目录输出 `.zh-CN.srt`。
 
-完整使用说明、工作流程、项目结构和排障方法见：[docs/video_subtitle.md](docs/video_subtitle.md)。
+完整使用说明、工作流程、项目结构和排障方法见：[docs/video_subtitle.md](docs/video_subtitle.md)。Emby 后端插件见：[docs/emby_video_subtitle_plugin.md](docs/emby_video_subtitle_plugin.md)。
 
 安装：
 

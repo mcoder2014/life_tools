@@ -190,6 +190,37 @@ sample/life_tools/video_subtitle.json
 
 `progress.jsonl` 不记录密钥、预签名 URL、完整 prompt 或完整台词。stderr 会输出短预览，便于人工观察进度。
 
+## Emby 插件调用要求
+
+Emby 插件只是调度层，真正生成字幕的仍是本工具。插件默认执行：
+
+```text
+/usr/local/bin/video_subtitle --input <video> --config /etc/life_tools/video_subtitle.json --source-language ja-JP --yes
+```
+
+当页面勾选强制重跑时，插件会追加：
+
+```text
+--force-asr --force-split --force-translate
+```
+
+部署时必须按 Emby 服务用户验证，而不是按当前登录用户验证：
+
+```bash
+systemctl show emby-server -p User -p Group
+sudo -u emby /usr/local/bin/video_subtitle --help
+sudo -u emby test -r /etc/life_tools/video_subtitle.json
+sudo -u emby test -w /path/to/video/dir
+```
+
+常见失败和原因：
+
+- `No such file or directory: /usr/local/bin/video_subtitle`：工具未安装到插件配置的 `ExecutablePath`。
+- `Permission denied: .../.video_subtitle_work`：Emby 服务用户不能写视频目录。
+- 页面任务提交成功但历史没有输出文件：先看插件任务历史的 `StderrTail`，再看视频目录 `.video_subtitle_work/*/progress.jsonl`。
+
+详细插件配置、Web 页面、Admin API 和本机排障记录见 [docs/emby_video_subtitle_plugin.md](emby_video_subtitle_plugin.md)。
+
 ## 故障排查
 
 确认是否跳过 ASR：
@@ -241,6 +272,13 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile \
   video_subtitle/video_subtitle.py \
   video_subtitle/video_subtitle_test.py \
   video_subtitle/lib/*.py
+```
+
+Emby 插件核心和适配层验证：
+
+```bash
+dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
+dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln
 ```
 
 CLI 入口检查：

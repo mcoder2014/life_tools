@@ -97,3 +97,7 @@ venv/
 .env
 # Go test scratch directories
 renameV1/tmp/
+
+# .NET build artifacts
+**/bin/
+**/obj/
