@@ -16,6 +16,7 @@
 - `save_work/`：敏感词检测工具，构建产物名是 `check_keywords`。
 - `video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/video_subtitle.md`。
 - `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/emby_video_subtitle_plugin.md`。
+- `mac_app/`：macOS 图形应用集合；当前包含 `mac_app/interview_timer/`，说明见 `docs/interview_timer.md`。
 - `docs/`：项目文档，`video_subtitle` 的使用和维护说明在 `docs/video_subtitle.md`。
 - `sample/life_tools/`：示例配置文件。
 - `renameV1/testData/`：`renameV1` 的测试数据，包含媒体文件、nfo、bif 等样例。
@@ -37,6 +38,7 @@
 - `./output/check_keywords` from `./save_work/...`
 - `./output/retry_exec` from `./retry_exec/...`
 - `./output/codex_hook_notify` from `./codex_hook_notify/...`
+- `./output/file_share` from `./file_share/...`
 
 测试优先使用：
 
@@ -52,6 +54,14 @@ go test ./save_work
 ```
 
 涉及代码、配置、依赖或构建脚本的改动，交付前必须跑相应测试或构建。纯文档改动不需要假装跑 Go 测试，但要检查 diff。
+
+macOS App 不走根目录 `build.sh`。修改 `mac_app/interview_timer` 时在该目录下验证：
+
+```bash
+swift test
+swift build --product InterviewTimerApp
+./scripts/build_app.sh
+```
 
 ## Go 代码规则
 
@@ -128,7 +138,7 @@ emby_plugins/video_subtitle/install.sh --help
 
 - `go.mod` / `go.sum` 只有在确实需要依赖变更时才改。
 - 不要随手运行 `go get`、`go mod tidy` 或升级依赖；需要时先说明原因和影响。
-- `.gitignore` 忽略了 `output`、`bin`、IDE 文件等生成物。
+- `.gitignore` 忽略了 `output`、`bin`、SwiftPM `.build`、macOS `.app`、IDE 文件等生成物。
 - `build.sh` 虽然出现在 `.gitignore`，但它是被 git 跟踪的构建入口；不要因为被 ignore 就随手改坏。
 
 ## 工作区规则

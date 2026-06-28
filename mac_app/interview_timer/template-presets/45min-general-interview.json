@@ -1,0 +1,14 @@
+{
+  "templateName": "45min 通用技术面",
+  "warnings": {
+    "stageLastSeconds": 60,
+    "overallLastSeconds": 300
+  },
+  "stages": [
+    { "id": "intro", "name": "开场与流程说明", "durationMinutes": 5 },
+    { "id": "resume-deep-dive", "name": "简历深挖", "durationMinutes": 10 },
+    { "id": "technical-follow-up", "name": "技术追问", "durationMinutes": 15 },
+    { "id": "behavioral", "name": "行为面试", "durationMinutes": 10 },
+    { "id": "qa", "name": "候选人提问", "durationMinutes": 5 }
+  ]
+}
