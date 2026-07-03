@@ -24,6 +24,7 @@
 | `codex_hook_notify` | `codex_hook_notify` | Go | 是 | `/etc/life_tools/codex_hook_notify.json` |
 | `video_subtitle` | `video_subtitle` | Python | 是 | `/etc/life_tools/video_subtitle.json` |
 | `file_share` | `file_share` | Go | 是 | `/etc/life_tools/file_share.json` |
+| `codex_inspector` | `codex_inspector` | Go | 否 | 无配置文件，默认只读 `~/.codex` |
 | `InterviewTimer` | `InterviewTimer.app` | SwiftPM macOS App | 否 | `~/Library/Application Support/InterviewTimer/` |
 
 ## 快速安装
@@ -81,6 +82,38 @@ file_share -config /etc/life_tools/file_share.json
 ```
 
 `file_share` 默认无认证，用于个人临时分享。不要把含敏感文件、隐藏文件或符号链接的目录暴露到不可信网络。
+
+## codex_inspector
+
+`codex_inspector` 是实验工具，用来在本机浏览器里只读查看 Codex 会话、活跃度统计和记忆内容。它不在 `install.sh` 默认稳定安装清单中，也不会写入 `~/.codex`。
+
+构建和启动：
+
+```bash
+go build -o output/codex_inspector ./cli/codex_inspector/...
+./output/codex_inspector -addr 127.0.0.1:8787
+```
+
+可指定脱敏 fixture 或其他 Codex home：
+
+```bash
+./output/codex_inspector -codex-home /tmp/codex-fixture -addr 127.0.0.1:8787
+```
+
+历史会话 summary 默认缓存到本机 SQLite 文件，用于加速重复浏览。可指定或禁用：
+
+```bash
+./output/codex_inspector -cache-path /tmp/codex_inspector_cache.sqlite
+./output/codex_inspector -no-cache
+```
+
+安全边界：
+
+- 默认监听 `127.0.0.1`，不要绑定到公网地址。
+- 只读取 `session_index.jsonl`、`sessions/`、`memories/` 和 SQLite schema。
+- 不写入 `~/.codex`；SQLite cache 只写到用户 cache 目录或 `-cache-path` 指定位置，文件权限为 `0600`。
+- 不读取 `auth.json` 内容，不展示 token、cookie、secret 类字段。
+- 详细说明见 [cli/codex_inspector.md](cli/codex_inspector.md)。
 
 ## InterviewTimer
 

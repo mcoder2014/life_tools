@@ -43,6 +43,7 @@
 | CLI | `codex_hook_notify` | `cli/codex_hook_notify/` | `codex_hook_notify` | 接收 Codex hook 并推送飞书提醒 | [docs/cli/codex_hook_notify.md](docs/cli/codex_hook_notify.md) |
 | CLI | `file_share` | `cli/file_share/` | `file_share` | 临时启动只读 HTTP 文件分享服务 | [docs/cli/file_share.md](docs/cli/file_share.md) |
 | CLI | `video_subtitle` | `cli/video_subtitle/` | `video_subtitle` | 为单个视频生成简体中文字幕 | [docs/cli/video_subtitle.md](docs/cli/video_subtitle.md) |
+| Experimental CLI | `codex_inspector` | `cli/codex_inspector/` | `codex_inspector` | 本机只读查看 Codex 会话、token 用量、活跃度和记忆内容 | [docs/cli/codex_inspector.md](docs/cli/codex_inspector.md) |
 | Plugin | Emby 字幕插件 | `emby_plugins/video_subtitle/` | `LifeTools.Emby.VideoSubtitle.Emby.dll` | 在 Emby 后台调用 `video_subtitle` 生成字幕 | [docs/plugins/emby_video_subtitle.md](docs/plugins/emby_video_subtitle.md) |
 | GUI | InterviewTimer | `gui/interview_timer/` | `InterviewTimer.app` | macOS 面试悬浮计时器 | [docs/gui/interview_timer.md](docs/gui/interview_timer.md) |
 
@@ -59,6 +60,15 @@
 | `sample/life_tools/` | 示例配置文件。 |
 | `build.sh` | 构建 Go CLI 工具到 `output/`。 |
 | `install.sh` | 安装 CLI 工具、示例配置和可选 hook。 |
+
+`codex_inspector` 当前是实验工具，不在 `install.sh` 默认稳定安装清单中。需要试用时单独构建：
+
+```bash
+go build -o output/codex_inspector ./cli/codex_inspector/...
+./output/codex_inspector -addr 127.0.0.1:8787
+```
+
+历史 session summary 会写入本机 SQLite cache，加速重复浏览；可通过 `-cache-path` 指定位置，或用 `-no-cache` 禁用。
 
 ## 构建与验证
 

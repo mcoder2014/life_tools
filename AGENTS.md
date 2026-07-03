@@ -17,6 +17,7 @@
 - `cli/retry_exec/`：命令失败重试和失败通知工具。
 - `cli/codex_hook_notify/`：Codex lifecycle hook 飞书提醒工具。
 - `cli/file_share/`：临时 HTTP 文件分享工具。
+- `cli/codex_inspector/`：本机 Codex 历史会话、活跃度和记忆内容只读查看工具，当前是实验 CLI，不进默认安装清单。
 - `cli/video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/cli/video_subtitle.md`。
 - `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/plugins/emby_video_subtitle.md`。
 - `gui/interview_timer/`：macOS 面试悬浮计时 GUI 应用，说明见 `docs/gui/interview_timer.md`。
