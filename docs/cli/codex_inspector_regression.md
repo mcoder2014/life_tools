@@ -66,7 +66,8 @@ fixture 中的路径可使用 `/tmp/codex-demo/project`、`/tmp/demo-home/.codex
 | API-002 | `GET /api/overview?from=YYYY-MM-DD&to=YYYY-MM-DD` | `base` fixture | 请求一个只覆盖部分 session 的范围 | `stats.totalSessions` 只统计范围内 session；`stats.heatmap` 仍固定最近 183 天，不随范围缩短。 |
 | API-003 | `GET /api/sessions?limit=300` | `base` fixture | 请求 session 列表 | HTTP 200；session 按更新时间倒序；每项包含 `id`、`title`、`updatedAt`、`eventCount`、`tokenStats`。 |
 | API-004 | `GET /api/sessions?q=demo` | `base` fixture | 搜索标题、cwd 或 model | 只返回匹配项；大小写不应导致明显误判。 |
-| API-005 | `GET /api/sessions/{id}` | `base` fixture | 请求一条存在的 session | HTTP 200；包含 `summary`、`events`、`rawLines`；events 顺序与 JSONL 行序一致。 |
+| API-005 | `GET /api/sessions/{id}?event_limit=300&raw=0` | `base` fixture | 请求一条存在的 session | HTTP 200；包含 `summary`、分页后的 `events`、`eventTotal`、`hasMore`；不默认返回 `rawLines`；events 顺序与 JSONL 行序一致。 |
+| API-005A | `GET /api/sessions/{id}/raw?line=N` | `privacy` fixture | 请求单行 raw JSONL | HTTP 200；只返回目标行的脱敏 raw 内容；不存在的行返回结构化 404。 |
 | API-006 | `GET /api/sessions/not-found` | `base` fixture | 请求不存在的 id | HTTP 404；返回结构化 `error`，服务不 panic。 |
 | API-007 | `GET /api/memory` | `base` fixture | 请求 memory 列表 | HTTP 200；包含 `MEMORY.md`、`memory_summary.md`、rollout summary 条目。 |
 | API-008 | `GET /api/memory?q=keyword` | `base` fixture | 搜索关键词 | 只展示匹配文件或匹配计数；不返回 auth/token 原文。 |
@@ -88,7 +89,7 @@ fixture 中的路径可使用 `/tmp/codex-demo/project`、`/tmp/demo-home/.codex
 | C-006 | `GET /api/cache/status` | 健康 cache | 请求状态 | `status=healthy`；允许 `Fill missing cache`；不显示 rebuild 警告。 |
 | C-007 | `POST /api/cache/build` | 健康 cache 且有历史缺口 | 请求补齐 | 只补齐缺失或过期历史 summary；SQLite 写入保持串行或低并发。 |
 | C-008 | `GET /api/cache/status` | `cache_corrupt` | 请求状态 | `status=corrupt`；错误只在明确 `malformed`、`file is not a database`、`schema is corrupt` 时判定为损坏。 |
-| C-009 | `POST /api/cache/rebuild` | `cache_corrupt`，用户已二次确认 | 请求重建 | 原 cache rename 为 `.corrupt.<timestamp>.bak`；新建 cache；不直接删除损坏文件。 |
+| C-009 | `POST /api/cache/rebuild` | `cache_corrupt`，用户已在应用内确认弹窗二次确认 | 请求重建 | 原 cache rename 为 `.corrupt.<timestamp>.bak`；新建 cache；不直接删除损坏文件。 |
 | C-010 | `POST /api/cache/rebuild` | 普通权限失败或 busy timeout | 请求重建 | 不 rename；状态为 `unavailable`；展示原因；页面仍通过 JSONL 实时解析可用。 |
 | C-011 | Overview/Sessions | cache 损坏或不可用 | 打开页面 | 页面仍可展示统计和列表；warnings 可见；无未捕获 JS error。 |
 
@@ -112,11 +113,11 @@ fixture 中的路径可使用 `/tmp/codex-demo/project`、`/tmp/demo-home/.codex
 | S-001 | `base` fixture | 打开 Sessions | 左侧列表展示 session title、时间、事件数、model、token 简写和 preview。 |
 | S-002 | `base` fixture | 点击第一条 session | 右侧展示详情，不停留在 `Select a session to inspect.`。 |
 | S-003 | `base` fixture | 查看详情事件流 | user、assistant、tool call、tool result、system event 按 JSONL 原始顺序展示。 |
-| S-004 | `base` fixture | 展开 Raw JSONL | raw 内容已脱敏；能看到行号；不能出现假 token/cookie/secret 原文。 |
+| S-004 | `base` fixture | 展开 Raw JSONL | raw 内容按需加载且已脱敏；能看到行号；不能出现假 token/cookie/secret 原文。 |
 | S-005 | `token_usage` fixture | 点击含 token_count 的 session | token usage 摘要展示 total、input、cached、output、reasoning、last turn、context、rate limit。 |
 | S-006 | `base` fixture | 搜索 title、cwd、model | 列表过滤；清空搜索后恢复。 |
 | S-007 | `bad_jsonl` fixture | 点击含坏行 session | 可展示有效事件；坏行进入 warnings 或 raw 脱敏内容；服务不 panic。 |
-| S-008 | 大 session fixture | 点击事件数较多的 session | 详情只解析目标文件，不触发全量扫描导致长时间卡死。 |
+| S-008 | 大 session fixture | 点击事件数较多的历史 session | 首屏只渲染有限事件，展示总数和 `Load more events`；不默认下载全部 raw JSONL；有 summary hint 时后端只读取当前事件窗口，不触发浏览器慢标签提示。 |
 
 ## Memory 页面回归样例
 
@@ -137,7 +138,7 @@ fixture 中的路径可使用 `/tmp/codex-demo/project`、`/tmp/demo-home/.codex
 | D-003 | 系统无 `sqlite3` 命令 | 打开 Diagnostics | schema 区域显示不可用原因；页面仍可使用。 |
 | D-004 | cache missing | 打开 Diagnostics | cache 区域展示 `missing` 和 `Create cache` 按钮。 |
 | D-005 | cache healthy | 打开 Diagnostics | cache 区域展示 `healthy` 和 `Fill missing cache` 按钮。 |
-| D-006 | cache corrupt | 打开 Diagnostics | cache 区域展示 `corrupt`；`Backup and rebuild cache` 必须有二次确认。 |
+| D-006 | cache corrupt | 打开 Diagnostics 并点击 `Backup and rebuild cache` | cache 区域展示 `corrupt`；页面展示应用内二次确认 modal，不使用浏览器原生 confirm；取消关闭 modal，确认后才开始 rebuild。 |
 | D-007 | cache rebuilding | 触发 build/rebuild 后轮询 | 展示 total、done、cached、skipped、failed、startedAt、lastError 或 finishedAt。 |
 | D-008 | cache disabled/unavailable | 使用 `-no-cache` 或不可写 cache path | 展示明确原因；不展示可执行但必然失败的按钮。 |
 

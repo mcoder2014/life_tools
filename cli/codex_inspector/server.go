@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -27,12 +28,29 @@ func NewServer(store *Store) http.Handler {
 		writeJSON(w, http.StatusOK, SessionsResponse{Sessions: sessions, Warnings: warnings})
 	})
 	mux.HandleFunc("/api/sessions/", func(w http.ResponseWriter, r *http.Request) {
-		id, err := url.PathUnescape(strings.TrimPrefix(r.URL.Path, "/api/sessions/"))
+		rest := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+		if strings.HasSuffix(rest, "/raw") {
+			id, err := url.PathUnescape(strings.TrimSuffix(rest, "/raw"))
+			if err != nil || strings.TrimSpace(id) == "" {
+				http.Error(w, "invalid session id", http.StatusBadRequest)
+				return
+			}
+			line := offsetFromString(r.URL.Query().Get("line"))
+			raw, ok, warnings := store.LoadSessionRawLine(id, line)
+			if !ok {
+				writeJSON(w, http.StatusNotFound, map[string]any{"error": "raw line not found", "warnings": warnings})
+				return
+			}
+			writeJSON(w, http.StatusOK, RawLineResponse{Line: raw, Warnings: warnings})
+			return
+		}
+
+		id, err := url.PathUnescape(rest)
 		if err != nil || strings.TrimSpace(id) == "" {
 			http.Error(w, "invalid session id", http.StatusBadRequest)
 			return
 		}
-		detail, ok, warnings := store.LoadSessionDetail(id)
+		detail, ok, warnings := store.LoadSessionDetailWithOptions(id, sessionDetailOptions(r))
 		if !ok {
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": "session not found", "warnings": warnings})
 			return
@@ -112,6 +130,38 @@ func requestFilter(r *http.Request, fallbackLimit int) QueryFilter {
 		query.Get("q"),
 		limitFromString(query.Get("limit"), fallbackLimit),
 	)
+}
+
+func sessionDetailOptions(r *http.Request) SessionDetailOptions {
+	query := r.URL.Query()
+	return SessionDetailOptions{
+		IncludeEvents:   true,
+		IncludeRawLines: boolQuery(query.Get("raw"), true),
+		EventOffset:     offsetFromString(query.Get("event_offset")),
+		EventLimit:      limitFromString(query.Get("event_limit"), 0),
+	}
+}
+
+func boolQuery(value string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "":
+		return fallback
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+func offsetFromString(value string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || n < 0 {
+		return 0
+	}
+	if n > 100000 {
+		return 100000
+	}
+	return n
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

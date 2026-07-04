@@ -76,10 +76,27 @@ type RawLine struct {
 }
 
 type SessionDetail struct {
-	Summary  SessionSummary `json:"summary"`
-	Events   []DisplayEvent `json:"events"`
-	RawLines []RawLine      `json:"rawLines"`
-	Warnings []string       `json:"warnings,omitempty"`
+	Summary     SessionSummary `json:"summary"`
+	Events      []DisplayEvent `json:"events"`
+	RawLines    []RawLine      `json:"rawLines"`
+	EventOffset int            `json:"eventOffset"`
+	EventLimit  int            `json:"eventLimit,omitempty"`
+	EventTotal  int            `json:"eventTotal"`
+	HasMore     bool           `json:"hasMore"`
+	Warnings    []string       `json:"warnings,omitempty"`
+}
+
+type SessionDetailOptions struct {
+	IncludeEvents   bool
+	IncludeRawLines bool
+	EventOffset     int
+	EventLimit      int
+	EventTotalHint  int
+}
+
+type RawLineResponse struct {
+	Line     RawLine  `json:"line"`
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type CountPoint struct {

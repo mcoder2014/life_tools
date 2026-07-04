@@ -21,6 +21,13 @@ type responseItemHeader struct {
 }
 
 func ParseRolloutFile(path string, includeEvents bool) (SessionDetail, error) {
+	return ParseRolloutFileWithOptions(path, SessionDetailOptions{
+		IncludeEvents:   includeEvents,
+		IncludeRawLines: includeEvents,
+	})
+}
+
+func ParseRolloutFileWithOptions(path string, options SessionDetailOptions) (SessionDetail, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return SessionDetail{}, err
@@ -37,6 +44,7 @@ func ParseRolloutFile(path string, includeEvents bool) (SessionDetail, error) {
 	scanner.Buffer(make([]byte, 1024), 8*1024*1024)
 
 	lineNo := 0
+	displayIndex := 0
 	for scanner.Scan() {
 		lineNo++
 		line := scanner.Bytes()
@@ -46,29 +54,57 @@ func ParseRolloutFile(path string, includeEvents bool) (SessionDetail, error) {
 		}
 		detail.Summary.EventCount++
 
-		if includeEvents {
-			detail.RawLines = append(detail.RawLines, RawLine{Line: lineNo, Text: truncateText(sanitizedRawJSON(line), 60000)})
-		}
-
 		var record rolloutLine
 		if err := json.Unmarshal(line, &record); err != nil {
 			warning := fmt.Sprintf("line %d invalid JSON: %v", lineNo, err)
 			detail.Warnings = append(detail.Warnings, warning)
-			if includeEvents {
-				detail.Events = append(detail.Events, DisplayEvent{Line: lineNo, Kind: "system_event", Label: "Bad JSON", Text: warning})
+			if options.IncludeEvents {
+				if eventInWindow(displayIndex, options) {
+					detail.Events = append(detail.Events, DisplayEvent{Line: lineNo, Kind: "system_event", Label: "Bad JSON", Text: warning})
+					appendRawLine(&detail, lineNo, line, options)
+				}
+				displayIndex++
+				if shouldStopAfterEventWindow(displayIndex, options) {
+					break
+				}
 			}
 			continue
 		}
-		if !includeEvents {
+		if !options.IncludeEvents {
 			updateSummaryFast(&detail.Summary, record)
 			continue
 		}
 		event := parseDisplayEvent(record, lineNo)
 		updateSummary(&detail.Summary, record, event)
-		detail.Events = append(detail.Events, event)
+		if eventInWindow(displayIndex, options) {
+			detail.Events = append(detail.Events, event)
+			appendRawLine(&detail, lineNo, line, options)
+		}
+		displayIndex++
+		if shouldStopAfterEventWindow(displayIndex, options) {
+			break
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		detail.Warnings = append(detail.Warnings, fmt.Sprintf("scan %s: %v", path, err))
+	}
+	if options.IncludeEvents {
+		if detail.Events == nil {
+			detail.Events = []DisplayEvent{}
+		}
+		if detail.RawLines == nil {
+			detail.RawLines = []RawLine{}
+		}
+		detail.EventOffset = options.EventOffset
+		detail.EventLimit = options.EventLimit
+		detail.EventTotal = displayIndex
+		if options.EventTotalHint > detail.EventTotal {
+			detail.EventTotal = options.EventTotalHint
+		}
+		detail.HasMore = options.EventLimit > 0 && options.EventOffset+len(detail.Events) < displayIndex
+		if options.EventTotalHint > 0 {
+			detail.HasMore = options.EventLimit > 0 && options.EventOffset+len(detail.Events) < options.EventTotalHint
+		}
 	}
 	if detail.Summary.ID == "" {
 		detail.Summary.ID = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
@@ -77,6 +113,52 @@ func ParseRolloutFile(path string, includeEvents bool) (SessionDetail, error) {
 		detail.Summary.Title = detail.Summary.ID
 	}
 	return detail, nil
+}
+
+func eventInWindow(index int, options SessionDetailOptions) bool {
+	if index < options.EventOffset {
+		return false
+	}
+	return options.EventLimit <= 0 || index < options.EventOffset+options.EventLimit
+}
+
+func shouldStopAfterEventWindow(displayIndex int, options SessionDetailOptions) bool {
+	if options.EventTotalHint <= 0 || options.EventLimit <= 0 || options.IncludeRawLines {
+		return false
+	}
+	return displayIndex >= options.EventOffset+options.EventLimit
+}
+
+func appendRawLine(detail *SessionDetail, lineNo int, line []byte, options SessionDetailOptions) {
+	if !options.IncludeRawLines {
+		return
+	}
+	detail.RawLines = append(detail.RawLines, RawLine{Line: lineNo, Text: truncateText(sanitizedRawJSON(line), 60000)})
+}
+
+func ParseRolloutRawLine(path string, targetLine int) (RawLine, bool, error) {
+	if targetLine <= 0 {
+		return RawLine{}, false, nil
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return RawLine{}, false, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 1024), 8*1024*1024)
+	lineNo := 0
+	for scanner.Scan() {
+		lineNo++
+		if lineNo == targetLine {
+			return RawLine{Line: lineNo, Text: truncateText(sanitizedRawJSON(scanner.Bytes()), 60000)}, true, nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return RawLine{}, false, err
+	}
+	return RawLine{}, false, nil
 }
 
 func updateSummaryFast(summary *SessionSummary, record rolloutLine) {

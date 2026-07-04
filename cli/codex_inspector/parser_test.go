@@ -51,6 +51,27 @@ not json
 	require.Contains(t, combined, "[REDACTED]")
 }
 
+func TestParseRolloutFileStopsAtEventWindowWithTotalHint(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "rollout-2026-07-03T10-00-00-window.jsonl")
+	content := `{"type":"session_meta","timestamp":"2026-07-03T10:00:00Z","payload":{"id":"window-session","cwd":"/tmp/demo"}}
+{"type":"response_item","timestamp":"2026-07-03T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"first"}]}}
+not json after requested window
+`
+	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+
+	detail, err := ParseRolloutFileWithOptions(path, SessionDetailOptions{
+		IncludeEvents:  true,
+		EventLimit:     2,
+		EventTotalHint: 3,
+	})
+	require.NoError(t, err)
+	require.Empty(t, detail.Warnings)
+	require.Len(t, detail.Events, 2)
+	require.Equal(t, 3, detail.EventTotal)
+	require.True(t, detail.HasMore)
+}
+
 func TestStoreLoadsSessionIndexAndRolloutSummaries(t *testing.T) {
 	codexHome := t.TempDir()
 	sessionDir := filepath.Join(codexHome, "sessions", "2026", "07", "03")

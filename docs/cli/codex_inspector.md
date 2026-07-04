@@ -94,12 +94,14 @@ http://127.0.0.1:8787
 | `~/.codex/auth.json` | 不读取内容 | Diagnostics 只标记为排除项 | 否 |
 | 用户 cache 目录下的 `life_tools/codex_inspector/session_summary_cache.sqlite` | 脱敏 session summary、token 统计、文件大小和修改时间 | 历史数据缓存，不存 raw JSONL 或完整对话，不写 `~/.codex` | 是 |
 
+历史 session 详情页使用分页读取。若列表或 SQLite cache 已经提供可信 `SessionSummary`，后端会用其中的事件总数作为 hint，读取到当前页事件窗口后停止；今天仍在变化的 rollout 不使用该 hint，继续实时解析。
+
 ## 页面说明
 
 | 页面 | 内容 |
 |---|---|
 | Overview | 统计卡片、默认最近一周时间筛选、快捷时间范围、最近半年活跃度 heatmap、月度趋势和最近 session |
-| Sessions | 左侧 session 列表，右侧按原生顺序展示消息、工具调用、工具结果、系统事件、token usage 摘要和 raw JSONL |
+| Sessions | 左侧 session 列表，右侧按原生顺序分页展示消息、工具调用、工具结果、系统事件和 token usage 摘要；raw JSONL 按行展开时再加载 |
 | Memory | 左侧记忆文件列表，右侧详情预览；支持关键词搜索 |
 | Diagnostics | 数据源状态、SQLite schema 探测结果和只读边界 |
 
@@ -107,7 +109,7 @@ http://127.0.0.1:8787
 
 右上角时间范围影响统计卡片、月度趋势、最近 session 和 Sessions 列表。Activity heatmap 不跟随该筛选，固定展示最近 183 天；鼠标悬停单元格时显示日期和当日对话次数。
 
-大数字使用 `k`、`m`、`b` 简写，分别代表千、百万、十亿。精确值保留在指标悬浮提示或 raw 数据中。
+大数字使用 `k`、`m`、`b` 简写，分别代表千、百万、十亿。精确值保留在指标悬浮提示中。
 
 Diagnostics 的 Summary cache 面板展示派生 cache 生命周期：
 
@@ -159,7 +161,7 @@ flowchart TD
 - 历史 summary cache 写在用户 cache 目录或 `-cache-path` 指定位置，文件权限固定为 `0600`；缓存不包含 raw JSONL 或完整对话内容，只包含脱敏后的 `SessionSummary`、token 聚合、文件大小和修改时间。
 - 损坏 cache 不直接删除，只在用户触发 rebuild 时改名为 `.corrupt.<timestamp>.bak` 后重建。
 - JSON 和文本展示层会脱敏常见 `auth`、`token`、`cookie`、`password`、`secret`、`api_key`、`access_key` 字段。
-- raw JSONL 展开能力展示的是脱敏后的 JSONL，方便排查格式和事件顺序，不用于导出完整敏感内容。
+- raw JSONL 展开能力按行读取并展示脱敏后的 JSONL，方便排查格式和事件顺序；页面不默认下载完整 raw JSONL，不用于导出完整敏感内容。
 - token usage 只读取 Codex JSONL 中的结构化 `token_count` 元数据，不读取或推断账单、账号或认证信息。
 
 ## 脱敏截图
@@ -188,9 +190,9 @@ flowchart TD
 |---|---|---|
 | 页面显示没有 session | `session_index.jsonl` 或 `sessions/` 不存在，或时间筛选太窄 | 查看 Diagnostics，清空时间筛选后刷新 |
 | 某个 session 没有详情 | 索引里有 session，但 rollout JSONL 不存在或无法匹配 | 查看 session 列表里的路径和 Diagnostics 数据源 |
-| 点击 session 后一直 loading | 冷启动正在建立 session 索引，或目标 JSONL 文件过大 | 等待首次索引完成；详情接口会优先使用缓存中的 `id -> path`，避免每次点击全量扫描 |
+| 点击 session 后一直 loading | 冷启动正在建立 session 索引，或目标 JSONL 文件很大 | 等待首次索引完成；详情接口会优先使用缓存中的 `id -> path`，首屏只返回有限事件，后续通过 `Load more events` 追加 |
 | token 统计为 0 | 该历史 JSONL 没有 `event_msg.type=token_count`，或格式不同 | 这是兼容性缺失，不影响对话查看；Diagnostics 和 raw JSONL 可用于确认格式 |
-| CPU 占用高 | 首次历史范围加载需要解析该范围内尚未缓存的历史 rollout；今天的数据实时解析 | 等待首次缓存写入；后续历史请求会复用 SQLite summary cache，详情只解析目标文件 |
+| CPU 占用高 | 首次历史范围加载需要解析该范围内尚未缓存的历史 rollout；今天的数据实时解析；直接打开未缓存的超大 session 仍可能扫描目标文件 | 等待首次缓存写入；后续历史请求会复用 SQLite summary cache；历史详情页在有 summary hint 时只扫描当前事件窗口，raw JSONL 按行加载，避免浏览器一次性渲染完整会话 |
 | cache 状态是 missing | cache 文件尚未创建 | 在 Diagnostics 点击 `Create cache` |
 | cache 状态是 corrupt | SQLite 返回明确损坏错误 | 在 Diagnostics 二次确认后点击 `Backup and rebuild cache` |
 | cache 状态是 unavailable | 权限、busy timeout 或其他非损坏错误 | 处理错误原因；页面会降级实时解析 JSONL |

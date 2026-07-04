@@ -503,17 +503,51 @@ func mergeCachedSummary(detail *SessionDetail, cached SessionSummary) {
 }
 
 func (s *Store) LoadSessionDetail(id string) (SessionDetail, bool, []string) {
+	return s.LoadSessionDetailWithOptions(id, SessionDetailOptions{IncludeEvents: true, IncludeRawLines: true})
+}
+
+func (s *Store) LoadSessionDetailWithOptions(id string, options SessionDetailOptions) (SessionDetail, bool, []string) {
+	summary, ok, warnings := s.rolloutSession(id)
+	if !ok {
+		return SessionDetail{}, false, warnings
+	}
+	useSummaryHint := false
+	if options.IncludeEvents && !options.IncludeRawLines && options.EventLimit > 0 && summary.Enriched && summary.EventCount > 0 {
+		if meta, metaOK := statFile(summary.Path); metaOK && cacheableFile(meta, time.Now()) {
+			options.EventTotalHint = summary.EventCount
+			useSummaryHint = true
+		}
+	}
+	detail, err := ParseRolloutFileWithOptions(summary.Path, options)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("parse %s: %v", summary.Path, err))
+		return SessionDetail{}, false, warnings
+	}
+	mergeCachedSummary(&detail, summary)
+	if useSummaryHint {
+		detail.Summary = summary
+	}
+	return detail, true, warnings
+}
+
+func (s *Store) LoadSessionRawLine(id string, line int) (RawLine, bool, []string) {
+	summary, ok, warnings := s.rolloutSession(id)
+	if !ok {
+		return RawLine{}, false, warnings
+	}
+	raw, ok, err := ParseRolloutRawLine(summary.Path, line)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("raw line %s:%d: %v", summary.Path, line, err))
+		return RawLine{}, false, warnings
+	}
+	return raw, ok, warnings
+}
+
+func (s *Store) rolloutSession(id string) (SessionSummary, bool, []string) {
 	summary, ok, warnings := s.cachedSession(id)
 	if ok && summary.Path != "" {
-		detail, err := ParseRolloutFile(summary.Path, true)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("parse %s: %v", summary.Path, err))
-			return SessionDetail{}, false, warnings
-		}
-		mergeCachedSummary(&detail, summary)
-		return detail, true, warnings
+		return summary, true, warnings
 	}
-
 	files, fileWarnings := s.rolloutFiles()
 	warnings = append(warnings, fileWarnings...)
 	for i := len(files) - 1; i >= 0; i-- {
@@ -522,14 +556,14 @@ func (s *Store) LoadSessionDetail(id string) (SessionDetail, bool, []string) {
 		if id != base && !strings.Contains(base, id) {
 			continue
 		}
-		detail, err := ParseRolloutFile(path, true)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("parse %s: %v", path, err))
-			return SessionDetail{}, false, warnings
+		summary := summaryFromPath(path)
+		if summary.ID == "" {
+			summary.ID = base
 		}
-		return detail, true, warnings
+		summary.Path = path
+		return summary, true, warnings
 	}
-	return SessionDetail{}, false, warnings
+	return SessionSummary{}, false, warnings
 }
 
 func (s *Store) readSessionIndex() (map[string]sessionIndexLine, []string) {

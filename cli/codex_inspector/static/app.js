@@ -6,6 +6,8 @@ const state = {
   memoryFiles: [],
   selectedMemory: "",
   cachePollTimer: 0,
+  cacheRebuildConfirmOpen: false,
+  cacheRebuildBusy: false,
 };
 
 const RANGE_HISTORY_KEY = "codexInspectorRangeHistory";
@@ -14,6 +16,7 @@ const QUICK_RANGES = {
   "7d": { label: "Last 7 days", days: 7 },
   "30d": { label: "Last 30 days", days: 30 },
 };
+const SESSION_EVENT_PAGE_SIZE = 300;
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -374,12 +377,16 @@ function sessionCard(session, className) {
   return card;
 }
 
-async function loadSessionDetail(id) {
+async function loadSessionDetail(id, options = {}) {
+  const offset = options.offset || 0;
+  const append = !!options.append;
   const request = ++state.detailRequest;
-  setSessionDetailState("Loading session detail...", "Loading");
+  if (!append) {
+    setSessionDetailState("Loading session detail...", "Loading");
+  }
   let detail;
   try {
-    detail = await api(`/api/sessions/${encodeURIComponent(id)}`);
+    detail = await api(`/api/sessions/${encodeURIComponent(id)}?event_offset=${offset}&event_limit=${SESSION_EVENT_PAGE_SIZE}&raw=0`);
   } catch (error) {
     if (request === state.detailRequest) {
       setSessionDetailState(error.message || "Failed to load session detail.", "Load failed");
@@ -388,16 +395,18 @@ async function loadSessionDetail(id) {
   }
   if (request !== state.detailRequest) return;
   $("#sessionDetailTitle").textContent = detail.summary.title || detail.summary.id;
-  $("#sessionDetailMeta").textContent = `${detail.summary.updatedAt || ""}  ${detail.summary.cwd || ""}`;
-  const rawByLine = new Map((detail.rawLines || []).map((line) => [line.line, line.text]));
+  $("#sessionDetailMeta").textContent = sessionDetailMeta(detail);
   const root = $("#sessionDetail");
   root.classList.remove("empty-state");
-  root.textContent = "";
-  if (detail.summary.tokenStats && detail.summary.tokenStats.tokenEvents) {
+  root.querySelector(".load-more-row")?.remove();
+  if (!append) {
+    root.textContent = "";
+  }
+  if (!append && detail.summary.tokenStats && detail.summary.tokenStats.tokenEvents) {
     root.append(tokenSummaryPanel(detail.summary.tokenStats));
   }
   if (!detail.events || !detail.events.length) {
-    root.append(el("div", "empty-state", "No displayable events."));
+    if (!append) root.append(el("div", "empty-state", "No displayable events."));
     return;
   }
   detail.events.forEach((event) => {
@@ -406,16 +415,67 @@ async function loadSessionDetail(id) {
     const body = el("div", "event-body");
     body.append(el("div", "event-meta", `line ${event.line}${event.timestamp ? ` · ${event.timestamp}` : ""}`));
     body.append(el("div", "event-text", event.text || "(empty)"));
-    const raw = rawByLine.get(event.line);
-    if (raw) {
-      const details = el("details", "raw-details");
-      details.append(el("summary", "", "Raw JSONL"));
-      details.append(el("pre", "raw-block", raw));
-      body.append(details);
-    }
+    body.append(rawDetailsForEvent(id, event));
     item.append(body);
     root.append(item);
   });
+  appendLoadMore(root, detail, id);
+}
+
+function sessionDetailMeta(detail) {
+  const total = detail.eventTotal || detail.summary.eventCount || 0;
+  const offset = detail.eventOffset || 0;
+  const shown = (detail.events || []).length;
+  const start = total && shown ? 1 : 0;
+  const end = total && shown ? Math.min(offset + shown, total) : 0;
+  const range = total ? `showing ${formatNumber(start)}-${formatNumber(end)} of ${formatNumber(total)} events` : "";
+  return [detail.summary.updatedAt || "", detail.summary.cwd || "", range].filter(Boolean).join("  ");
+}
+
+function rawDetailsForEvent(sessionID, event) {
+  const details = el("details", "raw-details");
+  const summary = el("summary", "", "Raw JSONL");
+  const raw = el("pre", "raw-block", "Open to load raw JSONL for this line.");
+  details.append(summary);
+  details.append(raw);
+  details.addEventListener("toggle", () => {
+    if (!details.open || details.dataset.loaded === "1" || details.dataset.loading === "1") return;
+    details.dataset.loading = "1";
+    raw.textContent = "Loading raw JSONL...";
+    loadRawLine(sessionID, event.line, raw, details).catch((error) => {
+      raw.textContent = error.message || "Failed to load raw JSONL.";
+      details.dataset.loading = "0";
+    });
+  });
+  return details;
+}
+
+async function loadRawLine(sessionID, line, raw, details) {
+  const data = await api(`/api/sessions/${encodeURIComponent(sessionID)}/raw?line=${line}`);
+  raw.textContent = data.line?.text || "(empty)";
+  details.dataset.loaded = "1";
+  details.dataset.loading = "0";
+}
+
+function appendLoadMore(root, detail, sessionID) {
+  if (!detail.hasMore) return;
+  const row = el("div", "load-more-row");
+  const button = el("button", "secondary-button", "Load more events");
+  button.type = "button";
+  const nextOffset = (detail.eventOffset || 0) + (detail.events || []).length;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Loading more";
+    try {
+      await loadSessionDetail(sessionID, { append: true, offset: nextOffset });
+    } catch (error) {
+      showToast(error.message);
+      button.disabled = false;
+      button.textContent = "Load more events";
+    }
+  });
+  row.append(button);
+  root.append(row);
 }
 
 function setSessionDetailState(message, title = "Session detail") {
@@ -518,13 +578,38 @@ async function loadCacheStatus() {
 }
 
 async function startCacheBuild(rebuild = false) {
-  if (rebuild && !window.confirm("Backup the corrupt cache and rebuild a new cache?")) {
-    return;
-  }
+  if (rebuild) renderCacheRebuildModal(false);
   const path = rebuild ? "/api/cache/rebuild" : "/api/cache/build";
   const data = await api(path, { method: "POST" });
   renderCacheStatus(data);
   showToast(rebuild ? "Cache rebuild started" : "Cache build started");
+}
+
+function renderCacheRebuildModal(open) {
+  const modal = $("#cacheRebuildModal");
+  if (!modal) return;
+  state.cacheRebuildConfirmOpen = open;
+  modal.hidden = !open;
+  if (open) {
+    $("#cancelCacheRebuild").focus();
+  }
+}
+
+async function confirmCacheRebuild() {
+  if (state.cacheRebuildBusy) return;
+  state.cacheRebuildBusy = true;
+  $("#confirmCacheRebuild").disabled = true;
+  $("#cancelCacheRebuild").disabled = true;
+  try {
+    await startCacheBuild(true);
+  } catch (error) {
+    renderCacheRebuildModal(true);
+    showToast(error.message);
+  } finally {
+    state.cacheRebuildBusy = false;
+    $("#confirmCacheRebuild").disabled = false;
+    $("#cancelCacheRebuild").disabled = false;
+  }
 }
 
 function renderCacheStatus(cache) {
@@ -564,7 +649,7 @@ function renderCacheStatus(cache) {
   if (cache.canRebuild) {
     const button = el("button", "primary-button danger-button", "Backup and rebuild cache");
     button.type = "button";
-    button.addEventListener("click", () => startCacheBuild(true).catch((error) => showToast(error.message)));
+    button.addEventListener("click", () => renderCacheRebuildModal(true));
     actions.append(button);
   }
   if (cache.job?.running) {
@@ -690,6 +775,16 @@ $("#memorySearch").addEventListener("input", debounce(() => {
   state.selectedMemory = "";
   if (state.page === "memory") refresh();
 }, 220));
+$("#cancelCacheRebuild").addEventListener("click", () => renderCacheRebuildModal(false));
+$("#confirmCacheRebuild").addEventListener("click", () => confirmCacheRebuild());
+$("#cacheRebuildModal").addEventListener("click", (event) => {
+  if (event.target.id === "cacheRebuildModal") renderCacheRebuildModal(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.cacheRebuildConfirmOpen && !state.cacheRebuildBusy) {
+    renderCacheRebuildModal(false);
+  }
+});
 
 initializeRangeControls();
 refresh();
