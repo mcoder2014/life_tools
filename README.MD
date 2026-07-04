@@ -2,6 +2,20 @@
 
 个人日常使用的小工具集合，按应用类型组织源码：命令行程序放在 `cli/`，插件程序放在 `emby_plugins/`，图形界面程序放在 `gui/`。
 
+## 界面预览
+
+下面这些工具带有浏览器或桌面界面，截图均使用脱敏演示数据。点击截图可进入对应文档。
+
+| Codex Inspector：总览 | Codex Inspector：会话详情 |
+|---|---|
+| [<img src="docs/assets/codex_inspector/overview-1440.png" alt="Codex Inspector Overview" width="520">](docs/cli/codex_inspector.md) | [<img src="docs/assets/codex_inspector/sessions-1440.png" alt="Codex Inspector Sessions" width="520">](docs/cli/codex_inspector.md) |
+| 本机只读查看 Codex 会话数量、token 用量、活跃度热力图和最近 session。 | 按原生交互顺序查看 user、assistant、tool call、tool result 和 raw JSONL。 |
+
+| file_share | Emby 字幕插件 | InterviewTimer |
+|---|---|---|
+| [<img src="docs/assets/file_share/overview-1440.png" alt="file_share browser UI" width="340">](docs/cli/file_share.md) | [<img src="docs/assets/emby_video_subtitle/control-page-1440.png" alt="Emby video subtitle plugin" width="340">](docs/plugins/emby_video_subtitle.md) | [<img src="docs/assets/interview_timer/panel.png" alt="InterviewTimer floating panel" width="260">](docs/gui/interview_timer.md) |
+| 临时启动本机只读 HTTP 文件分享服务，支持浏览、下载和目录打包。 | 在 Emby Web 中选择媒体、配置参数并提交字幕生成任务。 | macOS 悬浮面试计时器，按模板推进多环节流程。 |
+
 ## 快速安装
 
 支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定命令行工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`、`file_share`。
