@@ -130,4 +130,4 @@ swift build --product InterviewTimerApp
 
 ## 发布
 
-推送 `v*` tag 会通过 GitHub Actions 构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包、Emby 插件包和未签名的 `InterviewTimer.app` 包。发布流程见 [docs/release.md](docs/release.md)。
+推送 `v*` tag 会通过 GitHub Actions 构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包、Emby 插件包和未签名的 `InterviewTimer.app` 包。Go 二进制包包含 `codex_inspector`，但它仍是实验工具，不进入默认安装清单。发布流程见 [docs/release.md](docs/release.md)。

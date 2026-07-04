@@ -162,11 +162,13 @@ emby_plugins/video_subtitle/install.sh --help
 `.github/workflows/swift-mac-app.yml` 负责 `gui/interview_timer` 的 Swift 单测、编译和未签名 `.app` 发布。
 
 - tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
-- Go 测试放在 `.github/workflows/go-test.yml`，Python 单元测试放在 `.github/workflows/python-test.yml`，测试失败只能写 GitHub warning 和 summary，不能让 reminder workflow 或 release workflow 失败。
-- Go 二进制包只放稳定 CLI 工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`file_share`。
+- Go 测试放在 `.github/workflows/go-test.yml`，PR 时必须真实运行 `go test ./...`，不能做成只提醒不阻塞的 reminder。
+- Python 单元测试放在 `.github/workflows/python-test.yml`，失败只写 GitHub warning 和 summary，不能阻塞 release workflow。
+- Go 二进制包包含稳定 CLI 工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`file_share`；`codex_inspector` 作为实验工具参与 release 二进制产物，但仍不进入根目录 `install.sh` 默认安装清单。
 - `video_subtitle` 只能按源码包发布，不能宣传成免依赖二进制；它仍依赖 Python、ffmpeg、TOS、ASR 和 LLM 配置。
 - Emby 插件包只放 `LifeTools.Emby.VideoSubtitle.Emby.dll` 和文档，不要把 `MediaBrowser.*`、`Emby.*` 或核心库 DLL 打进插件发布包。
 - `InterviewTimer` macOS App 只在 macOS runner 上构建，tag 发布包为未签名的 `InterviewTimer.app` zip，不要把它塞进根目录 `install.sh` 或 Go 二进制发布包。
+- 新增 CLI、构建入口、release 产物或测试要求时，必须检查 `.github/workflows/*` 是否需要同步，避免代码合入后没有 CI 或 tag 发布产物缺失。
 - 修改发布包内容时同步更新 `docs/release.md` 和 README 的发布入口。
 - 发布 workflow 需要 `permissions: contents: write`，不要扩大到无关权限。
 

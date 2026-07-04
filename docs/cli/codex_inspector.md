@@ -2,7 +2,7 @@
 
 `codex_inspector` 是本机 Codex Inspector。它启动一个只绑定本机地址的 HTTP 服务，用浏览器查看 `~/.codex` 里的历史 session、活跃度统计和记忆内容。
 
-当前状态：实验工具。它不在 `install.sh` 默认稳定安装清单中，也不参与 release 稳定二进制包。
+当前状态：实验工具。它会进入 tag Release 的 Go 二进制包，但不在根目录 `install.sh` 默认稳定安装清单中。
 
 ## 用途
 
