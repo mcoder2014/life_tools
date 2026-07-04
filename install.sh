@@ -9,7 +9,7 @@ HOOKS_FILE="$HOME/.codex/hooks.json"
 OS_NAME="$(uname -s)"
 
 STABLE_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share)
-ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share)
+ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share life_codex_server life_codex_agent)
 REQUESTED_TOOLS=()
 SELECTED_TOOLS=()
 INSTALL_ALL=0
@@ -38,7 +38,7 @@ Stable tools installed by default:
   renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share
 
 All tool names:
-  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share
+  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share, life_codex_server, life_codex_agent
 
 Examples:
   ./install.sh
@@ -47,6 +47,7 @@ Examples:
   ./install.sh --tool video_subtitle --with-python-deps
   ./install.sh --tool codex_hook_notify --install-codex-hook
   ./install.sh --tool file_share
+  ./install.sh --tool life_codex_server --tool life_codex_agent
 EOF
 }
 
@@ -174,6 +175,12 @@ normalize_tool_name() {
       ;;
     file|share|file-share|file_share)
       echo "file_share"
+      ;;
+    life-codex-server|life_codex_server)
+      echo "life_codex_server"
+      ;;
+    life-codex-agent|life_codex_agent)
+      echo "life_codex_agent"
       ;;
     *)
       return 1
@@ -312,7 +319,7 @@ needs_go() {
   local tool
   for tool in "${SELECTED_TOOLS[@]}"; do
     case "$tool" in
-      renameV1|check_keywords|retry_exec|codex_hook_notify|file_share)
+      renameV1|check_keywords|retry_exec|codex_hook_notify|file_share|life_codex_server|life_codex_agent)
         return 0
         ;;
     esac
@@ -530,6 +537,29 @@ Examples:
 EOF
 }
 
+install_life_codex_web() {
+  local dist_dir="$ROOT_DIR/web/life_codex/dist"
+  local target_dir="$PREFIX/share/life_tools/life_codex"
+
+  if [ ! -d "$dist_dir" ]; then
+    echo "web/life_codex/dist not found; run: npm --prefix web/life_codex install && npm --prefix web/life_codex run build" >&2
+    exit 1
+  fi
+  copy_dir_contents "$dist_dir" "$target_dir"
+  echo "installed web assets: $target_dir"
+}
+
+install_life_codex_server() {
+  install_go_tool life_codex_server life_codex_server ./cli/life_codex_server/...
+  install_life_codex_web
+  install_config_if_missing "$ROOT_DIR/sample/life_tools/life_codex_server.json" "$CONFIG_DIR/life_codex_server.json"
+}
+
+install_life_codex_agent() {
+  install_go_tool life_codex_agent life_codex_agent ./cli/life_codex_agent/...
+  install_config_if_missing "$ROOT_DIR/sample/life_tools/life_codex_agent.json" "$CONFIG_DIR/life_codex_agent.json"
+}
+
 install_video_subtitle() {
   local lib_dir="$PREFIX/lib/life_tools/video_subtitle"
   local wrapper="$OUTPUT_DIR/video_subtitle"
@@ -577,6 +607,12 @@ install_selected_tool() {
       ;;
     file_share)
       install_file_share
+      ;;
+    life_codex_server)
+      install_life_codex_server
+      ;;
+    life_codex_agent)
+      install_life_codex_agent
       ;;
     *)
       echo "unsupported tool: $1" >&2

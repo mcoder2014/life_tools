@@ -12,6 +12,7 @@
 - 默认安装路径：可执行文件放到 `/usr/local/bin`，Python 工具文件放到 `/usr/local/lib/life_tools`。
 - 默认配置路径：`/etc/life_tools`，可用 `--config-dir` 改变安装脚本写入位置。
 - `codex_inspector` 是实验工具，使用 `cli/codex_inspector/install.sh` 单独安装；默认安装到 `$HOME/.local/bin`，不写系统目录。
+- `life_codex_server` 和 `life_codex_agent` 是实验工具，默认不安装；必须显式指定 `--tool`。
 
 写入 `/usr/local`、`/etc/life_tools` 和 Linux 的 `/var/log` 时可能需要 `sudo`。脚本会在需要时调用 `sudo`，不会覆盖已经存在的配置文件。
 
@@ -26,6 +27,8 @@
 | `video_subtitle` | `video_subtitle` | Python | 是 | `/etc/life_tools/video_subtitle.json` |
 | `file_share` | `file_share` | Go | 是 | `/etc/life_tools/file_share.json` |
 | `codex_inspector` | `codex_inspector` | Go | 否 | 无配置文件，默认只读 `~/.codex` |
+| `life_codex_server` | `life_codex_server` | Go + Web | 否 | `/etc/life_tools/life_codex_server.json` |
+| `life_codex_agent` | `life_codex_agent` | Go | 否 | `/etc/life_tools/life_codex_agent.json` |
 | `InterviewTimer` | `InterviewTimer.app` | SwiftPM macOS App | 否 | `~/Library/Application Support/InterviewTimer/` |
 
 ## 快速安装
@@ -43,6 +46,7 @@
 ./install.sh --tool renameV1 --tool check_keywords
 ./install.sh --tools retry_exec,codex_hook_notify
 ./install.sh --tool file_share
+./install.sh --tool life_codex_server --tool life_codex_agent
 ```
 
 安装到自定义前缀：
@@ -58,6 +62,40 @@
 ```
 
 这只改变安装脚本写入示例配置的位置。部分工具源码里的默认配置路径仍是 `/etc/life_tools`，运行时需要用命令参数指定自定义配置路径。
+
+## life_codex
+
+`life_codex_server` 提供网页和中心服务，`life_codex_agent` 在每台计算机器前台运行并调用本机 `codex app-server --stdio`。
+
+安装前先构建网页：
+
+```bash
+npm --prefix web/life_codex install
+npm --prefix web/life_codex run build
+```
+
+安装：
+
+```bash
+./install.sh --tool life_codex_server --tool life_codex_agent
+```
+
+配置文件：
+
+```text
+/etc/life_tools/life_codex_server.json
+/etc/life_tools/life_codex_agent.json
+```
+
+运行：
+
+```bash
+life_codex_server -config /etc/life_tools/life_codex_server.json
+life_codex_agent enroll -config /etc/life_tools/life_codex_agent.json -server http://127.0.0.1:8899 -token <token> -name local -roots /path/to/workspace
+life_codex_agent serve -config /etc/life_tools/life_codex_agent.json
+```
+
+详细行为、审计风险和本机模拟部署见 [cli/life_codex.md](cli/life_codex.md)。
 
 
 ## file_share

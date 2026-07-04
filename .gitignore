@@ -98,6 +98,10 @@ venv/
 # Go test scratch directories
 renameV1/tmp/
 
+# Frontend dependencies and build outputs
+web/**/node_modules/
+web/**/dist/
+
 # .NET build artifacts
 **/bin/
 **/obj/

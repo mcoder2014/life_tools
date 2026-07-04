@@ -1,0 +1,13 @@
+{
+  "server_url": "http://127.0.0.1:8899",
+  "machine_id": "",
+  "agent_token": "",
+  "machine_name": "local",
+  "allowed_roots": [
+    "/Users/bytedance"
+  ],
+  "codex_path": "codex",
+  "attachment_dir": "/var/lib/life_tools/life_codex_agent/attachments",
+  "max_active_sessions": 2,
+  "poll_seconds": 1
+}
