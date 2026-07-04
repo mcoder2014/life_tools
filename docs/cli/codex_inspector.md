@@ -55,12 +55,12 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 ./output/codex_inspector -codex-home /tmp/codex-inspector-fixture -addr 127.0.0.1:8787
 ```
 
-历史 session summary 会缓存到本机 SQLite 文件，用于减少重复解析历史 rollout。默认路径由 Go 的 `os.UserCacheDir()` 决定：
+历史 session summary 会缓存到本机 SQLite 文件，用于减少重复解析历史 rollout。默认路径放在系统临时目录下的用户隔离子目录，避免 macOS/Linux 上用户 cache 目录权限异常影响页面使用：
 
 | 系统 | 默认 cache |
 |---|---|
-| macOS | `~/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite` |
-| Linux | `${XDG_CACHE_HOME:-~/.cache}/life_tools/codex_inspector/session_summary_cache.sqlite` |
+| macOS | `${TMPDIR:-/tmp}/life_tools-codex-inspector-<uid>/session_summary_cache.sqlite` |
+| Linux | `/tmp/life_tools-codex-inspector-<uid>/session_summary_cache.sqlite` |
 
 可以显式指定或禁用：
 
@@ -92,7 +92,7 @@ http://127.0.0.1:8787
 | `~/.codex/goals_1.sqlite` | schema | Diagnostics 页面只读探测 | 否 |
 | `~/.codex/memories_1.sqlite` | schema | Diagnostics 页面只读探测 | 否 |
 | `~/.codex/auth.json` | 不读取内容 | Diagnostics 只标记为排除项 | 否 |
-| 用户 cache 目录下的 `life_tools/codex_inspector/session_summary_cache.sqlite` | 脱敏 session summary、token 统计、文件大小和修改时间 | 历史数据缓存，不存 raw JSONL 或完整对话，不写 `~/.codex` | 是 |
+| 系统 tmp 目录下的 `life_tools-codex-inspector-<uid>/session_summary_cache.sqlite` | 脱敏 session summary、token 统计、文件大小和修改时间 | 历史数据缓存，不存 raw JSONL 或完整对话，不写 `~/.codex` | 是 |
 
 历史 session 详情页使用分页读取。若列表或 SQLite cache 已经提供可信 `SessionSummary`，后端会用其中的事件总数作为 hint，读取到当前页事件窗口后停止；今天仍在变化的 rollout 不使用该 hint，继续实时解析。
 
@@ -158,7 +158,7 @@ flowchart TD
 - 安装脚本默认写 `$HOME/.local/bin`，不写 `/usr/local`、`/etc` 或 `/var`；系统级安装必须显式传 `--system` 或 `--allow-sudo`。
 - 不写入 `~/.codex`，不修改 session、memory、SQLite 或配置文件。
 - 不读取 `auth.json` 内容。
-- 历史 summary cache 写在用户 cache 目录或 `-cache-path` 指定位置，文件权限固定为 `0600`；缓存不包含 raw JSONL 或完整对话内容，只包含脱敏后的 `SessionSummary`、token 聚合、文件大小和修改时间。
+- 历史 summary cache 默认写在系统 tmp 下的用户隔离目录，cache 目录权限为 `0700`，文件权限固定为 `0600`；也可以用 `-cache-path` 指定位置。缓存不包含 raw JSONL 或完整对话内容，只包含脱敏后的 `SessionSummary`、token 聚合、文件大小和修改时间。
 - 损坏 cache 不直接删除，只在用户触发 rebuild 时改名为 `.corrupt.<timestamp>.bak` 后重建。
 - JSON 和文本展示层会脱敏常见 `auth`、`token`、`cookie`、`password`、`secret`、`api_key`、`access_key` 字段。
 - raw JSONL 展开能力按行读取并展示脱敏后的 JSONL，方便排查格式和事件顺序；页面不默认下载完整 raw JSONL，不用于导出完整敏感内容。

@@ -143,12 +143,12 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 ./output/codex_inspector -cache-workers 0
 ```
 
-默认 cache 路径按系统走用户缓存目录：
+默认 cache 路径放在系统临时目录下的用户隔离子目录，避免 macOS/Linux 上用户 cache 目录权限异常影响页面使用：
 
 | 系统 | 默认 cache |
 |---|---|
-| macOS | `~/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite` |
-| Linux | `${XDG_CACHE_HOME:-~/.cache}/life_tools/codex_inspector/session_summary_cache.sqlite` |
+| macOS | `${TMPDIR:-/tmp}/life_tools-codex-inspector-<uid>/session_summary_cache.sqlite` |
+| Linux | `/tmp/life_tools-codex-inspector-<uid>/session_summary_cache.sqlite` |
 
 cache 生命周期：
 
@@ -167,7 +167,7 @@ cache 生命周期：
 
 - 默认监听 `127.0.0.1`，不要绑定到公网地址。
 - 只读取 `session_index.jsonl`、`sessions/`、`memories/` 和 SQLite schema。
-- 不写入 `~/.codex`；SQLite cache 只写到用户 cache 目录或 `-cache-path` 指定位置，文件权限为 `0600`。
+- 不写入 `~/.codex`；SQLite cache 默认写到系统 tmp 下的用户隔离目录，目录权限为 `0700`，文件权限为 `0600`；也可以用 `-cache-path` 指定位置。
 - cache 只保存脱敏后的 `SessionSummary`、token 聚合、文件大小和修改时间，不保存 raw JSONL 或完整对话内容。
 - 不读取 `auth.json` 内容，不展示 token、cookie、secret 类字段。
 - 详细说明见 [cli/codex_inspector.md](cli/codex_inspector.md)。

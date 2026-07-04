@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,11 +28,7 @@ type fileMeta struct {
 }
 
 func defaultCachePath() string {
-	dir, err := os.UserCacheDir()
-	if err != nil || dir == "" {
-		dir = os.TempDir()
-	}
-	return filepath.Join(dir, "life_tools", "codex_inspector", "session_summary_cache.sqlite")
+	return filepath.Join(os.TempDir(), "life_tools-codex-inspector-"+strconv.Itoa(os.Getuid()), "session_summary_cache.sqlite")
 }
 
 func openSummaryDiskCache(path string) (*summaryDiskCache, error) {
@@ -47,7 +44,7 @@ func openSummaryDiskCacheAt(path string, create bool) (*summaryDiskCache, error)
 		return nil, nil
 	}
 	if create {
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 			return nil, err
 		}
 		file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0600)

@@ -103,14 +103,9 @@ EOF
 }
 
 print_cache_hint() {
-  case "$OS_NAME" in
-    Darwin)
-      echo "Default cache: $HOME/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite"
-      ;;
-    Linux)
-      echo "Default cache: ${XDG_CACHE_HOME:-$HOME/.cache}/life_tools/codex_inspector/session_summary_cache.sqlite"
-      ;;
-  esac
+  local uid
+  uid="$(id -u 2>/dev/null || echo user)"
+  echo "Default cache: ${TMPDIR:-/tmp}/life_tools-codex-inspector-$uid/session_summary_cache.sqlite"
 }
 
 print_start_hint() {

@@ -9,7 +9,7 @@
 | 原则 | 要求 |
 |---|---|
 | 数据安全 | 测试 fixture 必须脱敏；`auth.json`、token、cookie、secret、真实 API key 不得进入仓库。 |
-| 只读边界 | 测试不得写入 `~/.codex`；cache 只能写到 `-cache-path` 指定的临时文件或用户 cache 目录。 |
+| 只读边界 | 测试不得写入 `~/.codex`；cache 只能写到 `-cache-path` 指定的临时文件或系统 tmp 下的用户隔离目录。 |
 | 可重复 | 每个样例必须说明前置数据、启动参数、操作步骤和断言点。 |
 | 可自动化 | 页面样例需要给出可由 Chrome/Playwright 检查的 selector、网络请求或文本断言。 |
 | 跨端 | 涉及 UI 的改动至少检查 `390x844`、`768x1024`、`1440x900` 三类视口。 |

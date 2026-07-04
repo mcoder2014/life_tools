@@ -6,11 +6,32 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestDefaultCachePathUsesSystemTempDir(t *testing.T) {
+	path := defaultCachePath()
+	require.Equal(t, filepath.Join(os.TempDir(), "life_tools-codex-inspector-"+strconv.Itoa(os.Getuid()), "session_summary_cache.sqlite"), path)
+}
+
+func TestCacheDirectoryIsPrivateWhenCreated(t *testing.T) {
+	cachePath := filepath.Join(t.TempDir(), "nested", "summary.sqlite")
+	cache, err := openSummaryDiskCache(cachePath)
+	require.NoError(t, err)
+	require.NoError(t, cache.Close())
+
+	dirInfo, err := os.Stat(filepath.Dir(cachePath))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0700), dirInfo.Mode().Perm())
+
+	fileInfo, err := os.Stat(cachePath)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), fileInfo.Mode().Perm())
+}
 
 func TestCacheMissingCanCreateAndFill(t *testing.T) {
 	codexHome, rolloutPath := writeCacheTestRollout(t, "2000", "01", "02", "missing-cache-session")
