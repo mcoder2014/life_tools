@@ -1,6 +1,6 @@
 # 发布说明
 
-本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并把 zip 上传到 GitHub Release。PR 会执行发布包打包 dry-run，但不会创建 Release。Go 和 Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。Swift macOS App 使用独立 workflow 验证和上传未签名 `.app` 产物。
+本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并把 zip 上传到 GitHub Release。PR 会执行 Go 单测和发布包打包 dry-run，但不会创建 Release。Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。Swift macOS App 使用独立 workflow 验证和上传未签名 `.app` 产物。
 
 ## 触发方式
 
@@ -43,7 +43,7 @@ on:
       - 'v*'
 ```
 
-`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，Python 单元测试由 `.github/workflows/python-test.yml` 单独执行。测试失败时 reminder workflow 只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
+`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，失败会阻塞 PR。Python 单元测试由 `.github/workflows/python-test.yml` 单独执行，失败时只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
 
 `swift-mac-app.yml` 使用 `macos-latest` runner。PR 和 `master` 推送会验证 `gui/interview_timer` 的 Swift 单测、可执行产物构建和 `.app` 打包；`v*` tag 会额外上传未签名的 `InterviewTimer.app` zip。
 
@@ -90,10 +90,13 @@ bin/check_keywords
 bin/retry_exec
 bin/codex_hook_notify
 bin/file_share
+bin/codex_inspector
 install.sh
 sample/life_tools/*.json
 docs/**
 ```
+
+`codex_inspector` 虽然进入 Go 二进制发布包，但仍是实验工具，不进入根目录 `install.sh` 默认稳定安装清单。需要安装时优先使用 `cli/codex_inspector/install.sh` 或直接从 release zip 取 `bin/codex_inspector`。
 
 `video_subtitle` 发布包包含 Python 源码、prompts、`requirements.txt`、示例配置和文档。它不是纯二进制工具，使用前仍需要 Python 依赖、ffmpeg、TOS、ASR、LLM 配置。
 
@@ -132,14 +135,19 @@ swift build --product InterviewTimerApp
 ./scripts/build_app.sh
 ```
 
-测试提示 workflow 会运行：
+Go 测试 workflow 会运行：
 
 ```bash
 go test ./...
+```
+
+Python 测试提示 workflow 会运行：
+
+```bash
 python3 -m unittest cli/video_subtitle/video_subtitle_test.py
 ```
 
-这些 workflow 失败时只写 GitHub warning 和 summary，不阻塞 release workflow，也不阻止 tag 发布资产。
+Go 测试失败会阻塞 PR；Python 测试失败时只写 GitHub warning 和 summary，不阻塞 release workflow，也不阻止 tag 发布资产。
 
 ## 权限
 

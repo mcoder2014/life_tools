@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex Inspector</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">CI</div>
+      <div>
+        <div class="brand-title">Codex Inspector</div>
+        <div id="sourceStatus" class="brand-subtitle">Loading local data source</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <label class="range-field">
+        <span>Range</span>
+        <select id="rangePreset">
+          <option value="7d">Last 7 days</option>
+          <option value="1d">Last 24 hours</option>
+          <option value="30d">Last 30 days</option>
+        </select>
+      </label>
+      <label class="date-field">
+        <span>From</span>
+        <input id="fromDate" type="date">
+      </label>
+      <label class="date-field">
+        <span>To</span>
+        <input id="toDate" type="date">
+      </label>
+      <button id="refreshButton" class="primary-button" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div class="privacy-strip">
+    本工具只读展示本机 Codex 数据，默认运行在 127.0.0.1；auth、token、cookie、secret 类字段会被排除或脱敏。
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Page navigation">
+      <button class="nav-item active" type="button" data-page="overview">Overview</button>
+      <button class="nav-item" type="button" data-page="sessions">Sessions</button>
+      <button class="nav-item" type="button" data-page="memory">Memory</button>
+      <button class="nav-item" type="button" data-page="diagnostics">Diagnostics</button>
+    </aside>
+
+    <main class="content">
+      <section id="overviewPage" class="page active">
+        <div class="page-heading">
+          <div>
+            <h1>Overview</h1>
+            <p>会话总量、活跃度和最近对话。</p>
+          </div>
+          <div id="codexHomeBadge" class="path-badge"></div>
+        </div>
+        <div id="statCards" class="stat-grid"></div>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Activity heatmap</h2>
+            <span id="heatmapHint" class="muted"></span>
+          </div>
+          <div class="heatmap-wrap">
+            <div id="heatmap" class="heatmap" aria-label="Codex activity heatmap"></div>
+          </div>
+        </section>
+        <section class="split-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Monthly sessions</h2>
+            </div>
+            <div id="monthBars" class="bar-list"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Recent sessions</h2>
+            </div>
+            <div id="recentSessions" class="compact-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="sessionsPage" class="page">
+        <div class="page-heading">
+          <div>
+            <h1>Sessions</h1>
+            <p>按时间范围浏览 session，右侧展示原生交互顺序和 raw JSONL。</p>
+          </div>
+          <label class="search-box">
+            <span>Search</span>
+            <input id="sessionSearch" type="search" placeholder="title, cwd, model">
+          </label>
+        </div>
+        <div class="session-layout">
+          <div class="panel session-list-panel">
+            <div class="panel-header">
+              <h2>Session list</h2>
+              <span id="sessionCount" class="muted"></span>
+            </div>
+            <div id="sessionList" class="session-list"></div>
+          </div>
+          <div class="panel session-detail-panel">
+            <div class="panel-header">
+              <h2 id="sessionDetailTitle">Session detail</h2>
+              <span id="sessionDetailMeta" class="muted"></span>
+            </div>
+            <div id="sessionDetail" class="session-detail empty-state">Select a session to inspect.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="memoryPage" class="page">
+        <div class="page-heading">
+          <div>
+            <h1>Memory</h1>
+            <p>按摘要、索引和 rollout summary 查看本机记忆文件。</p>
+          </div>
+          <label class="search-box">
+            <span>Keyword</span>
+            <input id="memorySearch" type="search" placeholder="search memory">
+          </label>
+        </div>
+        <div class="memory-layout">
+          <div class="panel memory-list-panel">
+            <div class="panel-header">
+              <h2>Memory files</h2>
+              <span id="memoryCount" class="muted"></span>
+            </div>
+            <div id="memoryList" class="memory-list"></div>
+          </div>
+          <div class="panel memory-detail-panel">
+            <div class="panel-header">
+              <h2 id="memoryDetailTitle">Memory detail</h2>
+              <span id="memoryDetailMeta" class="muted"></span>
+            </div>
+            <pre id="memoryDetail" class="memory-detail empty-state">Select a memory file to preview.</pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="diagnosticsPage" class="page">
+        <div class="page-heading">
+          <div>
+            <h1>Diagnostics</h1>
+            <p>数据源状态、SQLite schema 探测和只读边界。</p>
+          </div>
+        </div>
+        <section class="panel cache-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Summary cache</h2>
+              <span id="cacheMeta" class="muted"></span>
+            </div>
+            <div id="cacheActions" class="cache-actions"></div>
+          </div>
+          <div id="cacheStatus" class="cache-status"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Data sources</h2>
+          </div>
+          <div id="sourceTable" class="table-wrap"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-header">
+            <h2>SQLite schema</h2>
+          </div>
+          <div id="schemaList" class="schema-list"></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="cacheRebuildModal" class="modal-backdrop" hidden>
+    <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="cacheRebuildTitle">
+      <div>
+        <h2 id="cacheRebuildTitle">Rebuild summary cache?</h2>
+        <p>
+          The current cache file is corrupt. Codex Inspector will rename it to a
+          <code>.corrupt.&lt;timestamp&gt;.bak</code> file, then create a new derived summary cache.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelCacheRebuild" class="secondary-button" type="button">Cancel</button>
+        <button id="confirmCacheRebuild" class="primary-button danger-button" type="button">Backup and rebuild</button>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

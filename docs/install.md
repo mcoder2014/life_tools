@@ -11,6 +11,7 @@
 - `InterviewTimer`：macOS 图形应用，需要 macOS 13+ 和 Swift/Apple 开发工具链，不由根目录 `install.sh` 默认安装。
 - 默认安装路径：可执行文件放到 `/usr/local/bin`，Python 工具文件放到 `/usr/local/lib/life_tools`。
 - 默认配置路径：`/etc/life_tools`，可用 `--config-dir` 改变安装脚本写入位置。
+- `codex_inspector` 是实验工具，使用 `cli/codex_inspector/install.sh` 单独安装；默认安装到 `$HOME/.local/bin`，不写系统目录。
 
 写入 `/usr/local`、`/etc/life_tools` 和 Linux 的 `/var/log` 时可能需要 `sudo`。脚本会在需要时调用 `sudo`，不会覆盖已经存在的配置文件。
 
@@ -24,6 +25,7 @@
 | `codex_hook_notify` | `codex_hook_notify` | Go | 是 | `/etc/life_tools/codex_hook_notify.json` |
 | `video_subtitle` | `video_subtitle` | Python | 是 | `/etc/life_tools/video_subtitle.json` |
 | `file_share` | `file_share` | Go | 是 | `/etc/life_tools/file_share.json` |
+| `codex_inspector` | `codex_inspector` | Go | 否 | 无配置文件，默认只读 `~/.codex` |
 | `InterviewTimer` | `InterviewTimer.app` | SwiftPM macOS App | 否 | `~/Library/Application Support/InterviewTimer/` |
 
 ## 快速安装
@@ -81,6 +83,94 @@ file_share -config /etc/life_tools/file_share.json
 ```
 
 `file_share` 默认无认证，用于个人临时分享。不要把含敏感文件、隐藏文件或符号链接的目录暴露到不可信网络。
+
+## codex_inspector
+
+`codex_inspector` 是实验工具，用来在本机浏览器里只读查看 Codex 会话、活跃度统计和记忆内容。它不在 `install.sh` 默认稳定安装清单中，也不会写入 `~/.codex`。
+
+快速安装：
+
+```bash
+./cli/codex_inspector/install.sh
+codex_inspector -addr 127.0.0.1:8787
+```
+
+默认安装路径是：
+
+```text
+$HOME/.local/bin/codex_inspector
+```
+
+macOS 和 Linux 权限策略一致：默认只写当前用户目录，不调用 `sudo`。如果目标目录不在 `PATH` 中，脚本会打印需要加入 shell profile 的提示。
+
+安装到自定义用户目录：
+
+```bash
+./cli/codex_inspector/install.sh --prefix "$HOME/.local"
+```
+
+系统级安装必须显式确认：
+
+```bash
+./cli/codex_inspector/install.sh --system
+```
+
+`--system` 会安装到 `/usr/local/bin/codex_inspector`，并在目录不可写时使用 `sudo`。如果使用其他系统目录，可以组合 `--prefix` 和 `--allow-sudo`：
+
+```bash
+./cli/codex_inspector/install.sh --prefix /opt/life_tools --allow-sudo
+```
+
+也可以不安装，直接构建和启动：
+
+```bash
+go build -o output/codex_inspector ./cli/codex_inspector/...
+./output/codex_inspector -addr 127.0.0.1:8787
+```
+
+可指定脱敏 fixture 或其他 Codex home：
+
+```bash
+./output/codex_inspector -codex-home /tmp/codex-fixture -addr 127.0.0.1:8787
+```
+
+历史会话 summary 默认缓存到本机 SQLite 文件，用于加速重复浏览。可指定或禁用：
+
+```bash
+./output/codex_inspector -cache-path /tmp/codex_inspector_cache.sqlite
+./output/codex_inspector -no-cache
+./output/codex_inspector -cache-workers 2
+./output/codex_inspector -cache-workers 0
+```
+
+默认 cache 路径放在系统临时目录下的用户隔离子目录，避免 macOS/Linux 上用户 cache 目录权限异常影响页面使用：
+
+| 系统 | 默认 cache |
+|---|---|
+| macOS | `${TMPDIR:-/tmp}/life_tools-codex-inspector-<uid>/session_summary_cache.sqlite` |
+| Linux | `/tmp/life_tools-codex-inspector-<uid>/session_summary_cache.sqlite` |
+
+cache 生命周期：
+
+| 状态 | 含义 | 操作 |
+|---|---|---|
+| `missing` | cache 文件不存在，页面实时解析 JSONL | Diagnostics 点击 `Create cache` |
+| `healthy` | cache 可用，历史 summary 可复用 | Diagnostics 点击 `Fill missing cache` |
+| `corrupt` | SQLite 明确报 `malformed`、`file is not a database` 或 `schema is corrupt` | Diagnostics 二次确认后点击 `Backup and rebuild cache` |
+| `rebuilding` | 后台正在补齐或重建 | 查看 total/done/cached/skipped/failed |
+| `disabled` | 使用 `-no-cache` 禁用 | 仅实时解析 JSONL |
+| `unavailable` | 权限、busy timeout 或其他非损坏错误 | 页面实时解析 JSONL，先处理错误原因 |
+
+`-cache-workers` 只控制自动补齐。默认值是 2；设为 0 时不会在启动后自动补齐，但 Diagnostics 上的手动创建或重建仍可执行一次。
+
+安全边界：
+
+- 默认监听 `127.0.0.1`，不要绑定到公网地址。
+- 只读取 `session_index.jsonl`、`sessions/`、`memories/` 和 SQLite schema。
+- 不写入 `~/.codex`；SQLite cache 默认写到系统 tmp 下的用户隔离目录，目录权限为 `0700`，文件权限为 `0600`；也可以用 `-cache-path` 指定位置。
+- cache 只保存脱敏后的 `SessionSummary`、token 聚合、文件大小和修改时间，不保存 raw JSONL 或完整对话内容。
+- 不读取 `auth.json` 内容，不展示 token、cookie、secret 类字段。
+- 详细说明见 [cli/codex_inspector.md](cli/codex_inspector.md)。
 
 ## InterviewTimer
 
