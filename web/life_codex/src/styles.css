@@ -329,6 +329,21 @@ textarea {
   font-size: 12px;
 }
 
+.path-readout {
+  display: block;
+  max-height: 76px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  background: var(--surface-soft);
+  border: 1px solid #dfe6ee;
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: #26384f;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .session-panel {
   min-height: 0;
   flex: 1 1 auto;
@@ -445,11 +460,10 @@ textarea {
 
 .chat-path {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.35;
 }
 
 .status {
@@ -505,6 +519,40 @@ textarea {
   margin: auto;
   color: var(--muted);
   font-size: 13px;
+}
+
+.failure-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid #efc1b6;
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.failure-banner div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.failure-banner strong {
+  font-size: 12px;
+}
+
+.failure-banner span {
+  overflow-wrap: anywhere;
+  color: #6f392f;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.retry-button {
+  flex: 0 0 auto;
 }
 
 .event {
@@ -752,6 +800,10 @@ textarea {
 
   .event {
     max-width: 92%;
+  }
+
+  .failure-banner {
+    flex-direction: column;
   }
 
   .composer-row {

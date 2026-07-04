@@ -85,6 +85,62 @@ func TestForkQueuesWhenMachineLimitReached(t *testing.T) {
 	}
 }
 
+func TestRetryFailedTextTurn(t *testing.T) {
+	root := t.TempDir()
+	store := newTestStore(t)
+	machineID, token := enrollTestMachine(t, store, root, 1)
+	session := readyTestSession(t, store, machineID, token, root)
+	if err := store.StartTurn(session.ID, "try again", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	commands, _ := store.Poll(AgentPollRequest{MachineID: machineID, Token: token, AllowedRoots: []string{root}, MaxActiveSessions: 1})
+	if len(commands) != 1 {
+		t.Fatalf("expected one command: %+v", commands)
+	}
+	if err := store.Report(AgentReport{MachineID: machineID, Token: token, CommandID: commands[0].ID, SessionID: session.ID, Status: "failed", Error: "network down"}); err != nil {
+		t.Fatal(err)
+	}
+	failed := findSession(store.Snapshot().Sessions, session.ID)
+	if failed == nil || failed.LastError != "network down" || len(failed.Events) == 0 || failed.Events[len(failed.Events)-1].Type != EventError {
+		t.Fatalf("failed session should keep error event: %+v", failed)
+	}
+	if err := store.RetryLastTurn(session.ID); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	retried := findSession(store.Snapshot().Sessions, session.ID)
+	if retried == nil || !retried.Active || retried.Status != SessionRunning || retried.LastError != "" {
+		t.Fatalf("session should be running without stale error: %+v", retried)
+	}
+	commands, _ = store.Poll(AgentPollRequest{MachineID: machineID, Token: token, AllowedRoots: []string{root}, MaxActiveSessions: 1})
+	if len(commands) != 1 || commands[0].Text != "try again" {
+		t.Fatalf("unexpected retry command: %+v", commands)
+	}
+}
+
+func TestRetryFailedImageTurnRequiresNewPaste(t *testing.T) {
+	root := t.TempDir()
+	store := newTestStore(t)
+	machineID, token := enrollTestMachine(t, store, root, 1)
+	session := readyTestSession(t, store, machineID, token, root)
+	if err := store.StartTurn(session.ID, "read image", nil, []ImagePayload{{Name: "x.png", ContentType: "image/png", DataBase64: "aaa"}}); err != nil {
+		t.Fatal(err)
+	}
+	commands, _ := store.Poll(AgentPollRequest{MachineID: machineID, Token: token, AllowedRoots: []string{root}, MaxActiveSessions: 1})
+	if len(commands) != 1 {
+		t.Fatalf("expected one command: %+v", commands)
+	}
+	imageEvent := Event{ID: "event-image", SessionID: session.ID, MachineID: machineID, Type: EventImage, Text: "1 image attachment(s) saved on agent"}
+	if err := store.Report(AgentReport{MachineID: machineID, Token: token, CommandID: commands[0].ID, SessionID: session.ID, Event: &imageEvent}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Report(AgentReport{MachineID: machineID, Token: token, CommandID: commands[0].ID, SessionID: session.ID, Status: "failed", Error: "network down"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RetryLastTurn(session.ID); err == nil {
+		t.Fatal("image retry should require a fresh paste")
+	}
+}
+
 func newTestStore(t *testing.T) *StateStore {
 	t.Helper()
 	config := DefaultServerConfig()
@@ -96,6 +152,25 @@ func newTestStore(t *testing.T) *StateStore {
 		t.Fatalf("new store: %v", err)
 	}
 	return store
+}
+
+func readyTestSession(t *testing.T, store *StateStore, machineID string, token string, root string) Session {
+	t.Helper()
+	session, err := store.CreateSession(machineID, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands, err := store.Poll(AgentPollRequest{MachineID: machineID, Token: token, AllowedRoots: []string{root}, MaxActiveSessions: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commands) != 1 {
+		t.Fatalf("expected create command: %+v", commands)
+	}
+	if err := store.Report(AgentReport{MachineID: machineID, Token: token, CommandID: commands[0].ID, SessionID: session.ID, ThreadID: "thread-1", Status: "completed"}); err != nil {
+		t.Fatal(err)
+	}
+	return session
 }
 
 func enrollTestMachine(t *testing.T, store *StateStore, root string, limit int) (string, string) {

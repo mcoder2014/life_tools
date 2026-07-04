@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -227,6 +228,56 @@ func (s *StateStore) StartTurn(sessionID string, text string, skill *SkillInput,
 	return nil
 }
 
+func (s *StateStore) RetryLastTurn(sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.sessions[sessionID]
+	if !ok {
+		return fmt.Errorf("session not found")
+	}
+	if session.Active {
+		return fmt.Errorf("session has an active turn")
+	}
+	if session.Status != SessionFailed {
+		return fmt.Errorf("session is not failed")
+	}
+	if session.ThreadID == "" {
+		return fmt.Errorf("session is not ready")
+	}
+	lastUserIndex := -1
+	for i := len(session.Events) - 1; i >= 0; i-- {
+		if session.Events[i].Type == EventUser && strings.TrimSpace(session.Events[i].Text) != "" {
+			lastUserIndex = i
+			break
+		}
+	}
+	if lastUserIndex < 0 {
+		return fmt.Errorf("no text turn to retry")
+	}
+	for _, event := range session.Events[lastUserIndex+1:] {
+		if event.Type == EventImage {
+			return fmt.Errorf("retry cannot reuse image attachments; paste images again")
+		}
+	}
+	turn := QueuedTurn{ID: mustRandomID("turn"), Text: session.Events[lastUserIndex].Text, CreatedUnix: nowUnix()}
+	session.LastError = ""
+	if s.activeCountLocked(session.MachineID) >= s.machineLimitLocked(session.MachineID) {
+		session.Queue = append(session.Queue, turn)
+		session.Status = SessionQueued
+		session.UpdatedUnix = nowUnix()
+		s.sessions[sessionID] = session
+		_ = s.audit.Log("turn_retry_queued", session.MachineID, sessionID, "", turn)
+		_ = s.saveLocked()
+		s.notifyLocked()
+		return nil
+	}
+	s.dispatchTurnLocked(session, turn)
+	_ = s.audit.Log("turn_retry_started", session.MachineID, sessionID, "", turn)
+	_ = s.saveLocked()
+	s.notifyLocked()
+	return nil
+}
+
 func (s *StateStore) ForkSession(sourceSessionID string, text string) (Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -341,14 +392,18 @@ func (s *StateStore) finishCommandLocked(report AgentReport) {
 	if report.Status == "failed" {
 		session.Status = SessionFailed
 		session.LastError = report.Error
-		s.appendEventLocked(Event{
+		event := Event{
 			ID:          mustRandomID("event"),
 			SessionID:   session.ID,
 			MachineID:   session.MachineID,
 			Type:        EventError,
 			Text:        report.Error,
 			CreatedUnix: nowUnix(),
-		})
+		}
+		session.Events = append(session.Events, event)
+		if len(session.Events) > 500 {
+			session.Events = session.Events[len(session.Events)-500:]
+		}
 	} else {
 		if len(session.Queue) > 0 {
 			session.Status = SessionQueued

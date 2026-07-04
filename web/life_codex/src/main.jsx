@@ -149,6 +149,7 @@ function SessionCreator({ token, machines, onCreated, onError }) {
           {machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.name || machine.id}</option>)}
         </select>
         <input value={cwd} onChange={(event) => setCwd(event.target.value)} list="allowed-roots" placeholder="cwd" />
+        {cwd && <code className="path-readout">{cwd}</code>}
         <datalist id="allowed-roots">
           {selectedMachine?.allowed_roots?.map((root) => <option key={root} value={root} />)}
         </datalist>
@@ -188,6 +189,18 @@ function ChatPanel({ token, session, onError }) {
   const selectedSkill = DEFAULT_SKILLS.find((item) => item.name === skill);
   const events = session?.events || [];
   const groupedEvents = useMemo(() => compactEvents(events), [events]);
+
+  async function retry() {
+    if (!session) return;
+    try {
+      await api(token, `/api/sessions/${session.id}/retry`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+    } catch (err) {
+      onError(err.message);
+    }
+  }
 
   async function send() {
     if (!session) return;
@@ -230,6 +243,15 @@ function ChatPanel({ token, session, onError }) {
         {session && <StatusBadge status={session.status} active={session.active} />}
       </div>
       <div className="event-stream">
+        {session?.last_error && (
+          <div className="failure-banner">
+            <div>
+              <strong>Failed reason</strong>
+              <span>{session.last_error}</span>
+            </div>
+            {session.status === 'failed' && <button className="secondary-button retry-button" onClick={retry}>Retry last turn</button>}
+          </div>
+        )}
         {groupedEvents.length === 0 && <div className="empty-state">This session has no messages.</div>}
         {groupedEvents.map((event) => <EventBubble key={event.id} event={event} />)}
       </div>

@@ -169,6 +169,12 @@ func (s *HTTPServer) handleSessionAction(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		writeJSON(w, http.StatusOK, session)
+	case "retry":
+		if err := s.store.RetryLastTurn(sessionID); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 	}

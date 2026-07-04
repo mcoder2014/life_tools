@@ -32,6 +32,8 @@
 | Session | Session 绑定机器；server 保存索引和最近 500 条事件；完整 Codex 状态留在机器本地 |
 | 并发 | 不同 Session 可并行；同一 Session 单 active turn；运行中输入进入 Session FIFO 队列 |
 | 机器限流 | 按 agent 上报的 `max_active_sessions` 控制同时运行的 Session 数 |
+| 失败原因 | Codex turn 失败时保留 `last_error`，网页在当前 Session 顶部展示原始失败原因 |
+| 重试 | failed Session 可点击 `Retry last turn`，server 复用最后一条文本用户消息重新入队或立即执行；如果本地 `codex app-server` 重启后找不到旧 thread，agent 会创建替代 thread 后重发本次 turn |
 | `/btw` / Fork | 输入 `/btw <问题>` 或右侧 Fork；优先调用 `thread/fork`，本机 Codex 不支持时降级新线程 |
 | 图片粘贴 | 网页转 base64，server 校验 MIME/大小/数量，agent 落盘后以 `localImage` 输入交给 Codex |
 | allowed roots | 创建 Session 的 cwd 必须在 agent `allowed_roots` 内 |
@@ -144,3 +146,5 @@ server 配置写到 `/private/tmp/life_codex_e2e/config/server.json`，其中目
 - 不做完整文件树、diff 编辑器、插件管理或实时语音。
 - 当前本机 `codex app-server` 如果不支持 `thread/fork`，BTW 会退化为新线程；这不是完整上下文 fork。
 - 网页审批只保留配置字段，V1 仍主要依赖 `approvalPolicy=on-request` 和 `approvalsReviewer=auto_review`。
+- failed Session 的 retry 只自动复用最后一条文本 turn；图片 turn 失败后需要重新粘贴图片，避免用脱敏后的图片 metadata 伪造重试。
+- 如果 retry 时旧 thread 已不在当前 `codex app-server` 内存中，agent 会启动替代 thread；这能恢复执行能力，但不能保证保留旧 thread 的完整上下文。

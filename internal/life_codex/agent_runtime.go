@@ -159,6 +159,29 @@ func (a *AgentRuntime) executeTurn(ctx context.Context, command AgentCommand) er
 	err = a.codex.StartTurn(ctx, command.SessionID, a.config.MachineID, command.ThreadID, command.CWD, command.Text, command.Skill, images, command.ApprovalPolicy, command.ApprovalsReviewer, func(event Event) {
 		a.report(ctx, AgentReport{CommandID: command.ID, SessionID: command.SessionID, Event: &event})
 	})
+	if err != nil && strings.Contains(err.Error(), "thread not found") {
+		threadID, startErr := a.codex.StartThread(ctx, command.CWD, command.ApprovalPolicy, command.ApprovalsReviewer)
+		if startErr != nil {
+			return fmt.Errorf("%w; start replacement thread: %v", err, startErr)
+		}
+		a.report(ctx, AgentReport{
+			CommandID: command.ID,
+			SessionID: command.SessionID,
+			ThreadID:  threadID,
+			Event: &Event{
+				ID:          mustRandomID("event"),
+				SessionID:   command.SessionID,
+				MachineID:   a.config.MachineID,
+				Type:        EventInfo,
+				Text:        "source thread was unavailable; started a replacement thread",
+				CreatedUnix: nowUnix(),
+			},
+		})
+		command.ThreadID = threadID
+		err = a.codex.StartTurn(ctx, command.SessionID, a.config.MachineID, command.ThreadID, command.CWD, command.Text, command.Skill, images, command.ApprovalPolicy, command.ApprovalsReviewer, func(event Event) {
+			a.report(ctx, AgentReport{CommandID: command.ID, SessionID: command.SessionID, Event: &event})
+		})
+	}
 	if err != nil {
 		return err
 	}
