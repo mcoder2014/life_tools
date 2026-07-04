@@ -186,3 +186,5 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 - Overview、Sessions、Memory、Diagnostics 四个页面能正常渲染。
 - Chrome console 没有相关 error。
 - `390x844`、`768x1024`、`1440x900` 三类视口没有文字重叠、按钮溢出、菜单遮挡或横向滚动失控。
+
+功能回归样例见 [codex_inspector_regression.md](codex_inspector_regression.md)。修改页面、API、parser、redaction、SQLite summary cache 或响应式布局时，必须同步更新对应回归样例。
