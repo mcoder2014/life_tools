@@ -1,0 +1,11 @@
+{
+  "addr": "127.0.0.1:8899",
+  "admin_token": "change-me",
+  "data_dir": "/var/lib/life_tools/life_codex_server",
+  "audit_dir": "/var/log/life_tools/life_codex_server",
+  "web_root": "/usr/local/share/life_tools/life_codex",
+  "max_image_bytes": 10485760,
+  "max_images_per_turn": 5,
+  "default_approval_policy": "on-request",
+  "default_approvals_reviewer": "auto_review"
+}

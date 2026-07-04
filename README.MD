@@ -31,6 +31,7 @@
 ./install.sh --tool renameV1 --tool check_keywords
 ./install.sh --tools retry_exec,codex_hook_notify
 ./install.sh --tool file_share
+./install.sh --tool life_codex_server --tool life_codex_agent
 ```
 
 自定义安装目录和配置目录：
@@ -58,6 +59,8 @@
 | CLI | `file_share` | `cli/file_share/` | `file_share` | 临时启动只读 HTTP 文件分享服务 | [docs/cli/file_share.md](docs/cli/file_share.md) |
 | CLI | `video_subtitle` | `cli/video_subtitle/` | `video_subtitle` | 为单个视频生成简体中文字幕 | [docs/cli/video_subtitle.md](docs/cli/video_subtitle.md) |
 | Experimental CLI | `codex_inspector` | `cli/codex_inspector/` | `codex_inspector` | 本机只读查看 Codex 会话、token 用量、活跃度和记忆内容 | [docs/cli/codex_inspector.md](docs/cli/codex_inspector.md) |
+| Experimental CLI | `life_codex_server` | `cli/life_codex_server/` | `life_codex_server` | 远程 Codex 控制台中心服务和网页 | [docs/cli/life_codex.md](docs/cli/life_codex.md) |
+| Experimental CLI | `life_codex_agent` | `cli/life_codex_agent/` | `life_codex_agent` | 连接中心服务并执行本机 Codex app-server 命令 | [docs/cli/life_codex.md](docs/cli/life_codex.md) |
 | Plugin | Emby 字幕插件 | `emby_plugins/video_subtitle/` | `LifeTools.Emby.VideoSubtitle.Emby.dll` | 在 Emby 后台调用 `video_subtitle` 生成字幕 | [docs/plugins/emby_video_subtitle.md](docs/plugins/emby_video_subtitle.md) |
 | GUI | InterviewTimer | `gui/interview_timer/` | `InterviewTimer.app` | macOS 面试悬浮计时器 | [docs/gui/interview_timer.md](docs/gui/interview_timer.md) |
 
