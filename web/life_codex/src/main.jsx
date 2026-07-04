@@ -14,6 +14,8 @@ function App() {
   const [selectedSessionID, setSelectedSessionID] = useState('');
   const [error, setError] = useState('');
   const selectedSession = state.sessions.find((item) => item.id === selectedSessionID) || state.sessions[0];
+  const currentMachine = state.machines.find((machine) => machine.id === selectedSession?.machine_id) || state.machines[0];
+  const runningSessions = state.sessions.filter((session) => session.active).length;
 
   useEffect(() => {
     if (!token) return;
@@ -40,19 +42,26 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <strong>life_codex</strong>
-          <span>{state.machines.length} machines</span>
-          <span>{state.sessions.length} sessions</span>
+        <div className="brand-block">
+          <span className="brand-mark" aria-hidden="true" />
+          <div>
+            <strong>life_codex</strong>
+            <span>Remote Codex Console</span>
+          </div>
         </div>
-        <button className="ghost" onClick={() => { localStorage.removeItem('life_codex_token'); setToken(''); }}>Lock</button>
+        <div className="topbar-meta">
+          <span title={currentMachine?.id || ''}>{currentMachine?.name || currentMachine?.id || 'No machine'}</span>
+          <span>{state.sessions.length} sessions</span>
+          <span>{runningSessions} running</span>
+          <button className="ghost lock-button" onClick={() => { localStorage.removeItem('life_codex_token'); setToken(''); }}>Lock console</button>
+        </div>
       </header>
       {error && <div className="error-banner">{error}</div>}
       <main className="workspace">
         <aside className="sidebar">
-          <Machines token={token} machines={state.machines} onError={setError} />
           <SessionCreator token={token} machines={state.machines} onCreated={(session) => setSelectedSessionID(session.id)} onError={setError} />
           <SessionList sessions={state.sessions} selectedID={selectedSession?.id} onSelect={setSelectedSessionID} />
+          <Machines token={token} machines={state.machines} onError={setError} />
         </aside>
         <ChatPanel token={token} session={selectedSession} onError={setError} />
         <ControlPanel token={token} session={selectedSession} onError={setError} />
@@ -66,9 +75,10 @@ function Login({ onSubmit }) {
   return (
     <div className="login">
       <form onSubmit={(event) => { event.preventDefault(); onSubmit(value.trim()); }}>
+        <span className="login-kicker">Remote Codex Console</span>
         <h1>life_codex</h1>
         <input type="password" value={value} onChange={(event) => setValue(event.target.value)} placeholder="Admin token" autoFocus />
-        <button type="submit">Unlock</button>
+        <button className="primary-button" type="submit">Unlock console</button>
       </form>
     </div>
   );
@@ -85,19 +95,20 @@ function Machines({ token, machines, onError }) {
     }
   }
   return (
-    <section className="panel">
-      <div className="section-title">
+    <section className="panel compact-panel machines-panel">
+      <div className="section-title panel-header">
         <h2>Machines</h2>
-        <button onClick={createToken}>Token</button>
+        <button className="secondary-button" onClick={createToken}>Token</button>
       </div>
       <div className="machine-list">
+        {machines.length === 0 && <span className="muted">No machines enrolled</span>}
         {machines.map((machine) => (
           <div className="machine" key={machine.id}>
             <div>
               <strong>{machine.name || machine.id}</strong>
-              <span>{machine.status}</span>
+              <span className={`machine-status ${machine.status}`}>{machine.status}</span>
             </div>
-            <small>{machine.allowed_roots?.join(', ')}</small>
+            <small title={machine.allowed_roots?.join(', ')}>{machine.allowed_roots?.join(', ')}</small>
           </div>
         ))}
       </div>
@@ -129,8 +140,10 @@ function SessionCreator({ token, machines, onCreated, onError }) {
     }
   }
   return (
-    <section className="panel">
-      <h2>New Session</h2>
+    <section className="panel compact-panel new-session-panel">
+      <div className="panel-header">
+        <h2>New Session</h2>
+      </div>
       <form className="stack" onSubmit={createSession}>
         <select value={machineID} onChange={(event) => setMachineID(event.target.value)}>
           {machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.name || machine.id}</option>)}
@@ -139,7 +152,7 @@ function SessionCreator({ token, machines, onCreated, onError }) {
         <datalist id="allowed-roots">
           {selectedMachine?.allowed_roots?.map((root) => <option key={root} value={root} />)}
         </datalist>
-        <button type="submit" disabled={!machineID || !cwd}>Create</button>
+        <button className="primary-button" type="submit" disabled={!machineID || !cwd}>Create session</button>
       </form>
     </section>
   );
@@ -148,12 +161,19 @@ function SessionCreator({ token, machines, onCreated, onError }) {
 function SessionList({ sessions, selectedID, onSelect }) {
   return (
     <section className="panel session-panel">
-      <h2>Sessions</h2>
+      <div className="section-title panel-header">
+        <h2>Sessions</h2>
+        <span className="panel-count">{sessions.length}</span>
+      </div>
       <div className="session-list">
+        {sessions.length === 0 && <span className="muted">No sessions yet</span>}
         {sessions.map((session) => (
           <button className={`session-item ${session.id === selectedID ? 'selected' : ''}`} key={session.id} onClick={() => onSelect(session.id)}>
-            <strong>{session.title || session.id}</strong>
-            <span>{session.status}{session.queue?.length ? ` · ${session.queue.length} queued` : ''}</span>
+            <strong className="session-title" title={session.title || session.id}>{session.title || session.id}</strong>
+            <span className="session-meta">
+              <span className={`session-dot ${session.active ? 'running' : session.status}`} aria-hidden="true" />
+              {session.active ? 'running' : session.status}{session.queue?.length ? ` · ${session.queue.length} queued` : ''}
+            </span>
           </button>
         ))}
       </div>
@@ -202,13 +222,15 @@ function ChatPanel({ token, session, onError }) {
   return (
     <section className="chat">
       <div className="chat-header">
-        <div>
-          <h2>{session?.title || 'No session'}</h2>
-          {session && <span>{session.cwd}</span>}
+        <div className="chat-title-group">
+          <span className="eyebrow">Current Session</span>
+          <h2 title={session?.title || ''}>{session?.title || 'No session selected'}</h2>
+          {session && <span className="chat-path" title={session.cwd}>{session.cwd}</span>}
         </div>
         {session && <StatusBadge status={session.status} active={session.active} />}
       </div>
       <div className="event-stream">
+        {groupedEvents.length === 0 && <div className="empty-state">This session has no messages.</div>}
         {groupedEvents.map((event) => <EventBubble key={event.id} event={event} />)}
       </div>
       <div className="composer" onPaste={onPaste}>
@@ -226,7 +248,7 @@ function ChatPanel({ token, session, onError }) {
             {DEFAULT_SKILLS.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
           </select>
           <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Message or /btw question" />
-          <button onClick={send} disabled={!session}>Send</button>
+          <button className="primary-button send-button" onClick={send} disabled={!session || (!text.trim() && images.length === 0)}>Send</button>
         </div>
       </div>
     </section>
@@ -262,50 +284,75 @@ function ControlPanel({ token, session, onError }) {
   }
   return (
     <aside className="rightbar">
-      <section className="panel">
-        <h2>BTW/Fork</h2>
+      <section className="panel action-panel">
+        <div className="panel-header">
+          <h2>BTW/Fork</h2>
+        </div>
         <textarea value={forkText} onChange={(event) => setForkText(event.target.value)} placeholder="Quick question" />
-        <button onClick={fork} disabled={!session || !forkText.trim()}>Fork</button>
+        <button className="secondary-button" onClick={fork} disabled={!session || !forkText.trim()}>Fork session</button>
       </section>
-      <section className="panel">
-        <h2>Queue</h2>
+      <section className="panel action-panel">
+        <div className="section-title panel-header">
+          <h2>Queue</h2>
+          <span className="panel-count">{session?.queue?.length || 0}</span>
+        </div>
         {(session?.queue || []).length === 0 && <span className="muted">Empty</span>}
         {(session?.queue || []).map((turn) => (
           <div className="queue-item" key={turn.id}>{turn.text || `${turn.images?.length || 0} image(s)`}</div>
         ))}
       </section>
       <section className="panel danger">
-        <h2>Audit</h2>
+        <div className="panel-header">
+          <h2>Audit</h2>
+        </div>
+        <p className="danger-copy">Clears audit records before the selected date. Image files are not logged as raw content.</p>
         <input type="date" value={before} onChange={(event) => setBefore(event.target.value)} />
         <label><input type="checkbox" checked={confirm} onChange={(event) => setConfirm(event.target.checked)} /> Confirm cleanup</label>
-        <button onClick={clearAudit} disabled={!before || !confirm}>Clear</button>
+        <button className="danger-button" onClick={clearAudit} disabled={!before || !confirm}>Clear audit</button>
       </section>
     </aside>
   );
 }
 
 function EventBubble({ event }) {
+  const labels = {
+    assistant: 'Codex',
+    error: 'Error',
+    image: 'Image',
+    info: 'System',
+    tool: 'Tool',
+    user: 'You'
+  };
   return (
     <div className={`event ${event.type}`}>
-      <span>{event.type}</span>
+      <span className="event-label">{labels[event.type] || event.type}</span>
       <p>{event.text}</p>
     </div>
   );
 }
 
 function StatusBadge({ status, active }) {
-  return <span className={`status ${active ? 'active' : ''}`}>{status}</span>;
+  const state = String(active ? 'running' : status || 'idle').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  return <span className={`status ${state}`}>{active ? 'running' : status}</span>;
 }
 
 function compactEvents(events) {
   const result = [];
   for (const event of events) {
+    const current = { ...event };
     const prev = result[result.length - 1];
-    if (prev && prev.type === 'assistant' && event.type === 'assistant' && event.text.length < 240) {
-      prev.text += event.text;
-      continue;
+    if (prev && prev.type === 'assistant' && current.type === 'assistant') {
+      if (current.text && prev.text && current.text.includes(prev.text)) {
+        prev.id = current.id;
+        prev.text = current.text;
+        continue;
+      }
+      if (current.text.length < 240) {
+        prev.text += current.text;
+        continue;
+      }
     }
-    result.push({ ...event });
+    result.push(current);
   }
   return result;
 }
