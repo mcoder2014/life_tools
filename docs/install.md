@@ -139,6 +139,8 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 ```bash
 ./output/codex_inspector -cache-path /tmp/codex_inspector_cache.sqlite
 ./output/codex_inspector -no-cache
+./output/codex_inspector -cache-workers 2
+./output/codex_inspector -cache-workers 0
 ```
 
 默认 cache 路径按系统走用户缓存目录：
@@ -148,11 +150,25 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 | macOS | `~/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite` |
 | Linux | `${XDG_CACHE_HOME:-~/.cache}/life_tools/codex_inspector/session_summary_cache.sqlite` |
 
+cache 生命周期：
+
+| 状态 | 含义 | 操作 |
+|---|---|---|
+| `missing` | cache 文件不存在，页面实时解析 JSONL | Diagnostics 点击 `Create cache` |
+| `healthy` | cache 可用，历史 summary 可复用 | Diagnostics 点击 `Fill missing cache` |
+| `corrupt` | SQLite 明确报 `malformed`、`file is not a database` 或 `schema is corrupt` | Diagnostics 二次确认后点击 `Backup and rebuild cache` |
+| `rebuilding` | 后台正在补齐或重建 | 查看 total/done/cached/skipped/failed |
+| `disabled` | 使用 `-no-cache` 禁用 | 仅实时解析 JSONL |
+| `unavailable` | 权限、busy timeout 或其他非损坏错误 | 页面实时解析 JSONL，先处理错误原因 |
+
+`-cache-workers` 只控制自动补齐。默认值是 2；设为 0 时不会在启动后自动补齐，但 Diagnostics 上的手动创建或重建仍可执行一次。
+
 安全边界：
 
 - 默认监听 `127.0.0.1`，不要绑定到公网地址。
 - 只读取 `session_index.jsonl`、`sessions/`、`memories/` 和 SQLite schema。
 - 不写入 `~/.codex`；SQLite cache 只写到用户 cache 目录或 `-cache-path` 指定位置，文件权限为 `0600`。
+- cache 只保存脱敏后的 `SessionSummary`、token 聚合、文件大小和修改时间，不保存 raw JSONL 或完整对话内容。
 - 不读取 `auth.json` 内容，不展示 token、cookie、secret 类字段。
 - 详细说明见 [cli/codex_inspector.md](cli/codex_inspector.md)。
 

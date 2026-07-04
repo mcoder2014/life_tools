@@ -84,6 +84,15 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 
 历史 session summary 会写入本机 SQLite cache，加速重复浏览；可通过 `-cache-path` 指定位置，或用 `-no-cache` 禁用。
 
+cache 是派生数据，不写入 `~/.codex`。服务启动时只打开已有 cache；cache 缺失时页面仍会实时解析 JSONL，Diagnostics 页面可以手动创建。已有健康 cache 会按 `-cache-workers` 后台补齐历史 session，默认 2 个 worker，`0` 表示关闭自动补齐：
+
+```bash
+codex_inspector -cache-workers 2
+codex_inspector -cache-workers 0
+```
+
+Diagnostics 支持查看 cache 状态并执行 `Create cache`、`Fill missing cache`、`Backup and rebuild cache`。损坏 cache 会先重命名为 `.corrupt.<timestamp>.bak`，再新建 cache。
+
 ## 构建与验证
 
 构建 Go CLI：

@@ -57,6 +57,27 @@ func NewServer(store *Store) http.Handler {
 	mux.HandleFunc("/api/diagnostics", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, store.Diagnostics())
 	})
+	mux.HandleFunc("/api/cache/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, store.CacheStatus())
+	})
+	mux.HandleFunc("/api/cache/build", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, store.StartCacheBuild())
+	})
+	mux.HandleFunc("/api/cache/rebuild", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		writeJSON(w, http.StatusOK, store.StartCacheRebuild())
+	})
 
 	sub, err := fs.Sub(staticFiles, "static")
 	if err != nil {

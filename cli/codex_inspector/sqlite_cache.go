@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -15,6 +17,7 @@ const summaryCacheVersion = 1
 type summaryDiskCache struct {
 	path string
 	db   *sql.DB
+	mu   sync.Mutex
 }
 
 type fileMeta struct {
@@ -32,18 +35,34 @@ func defaultCachePath() string {
 }
 
 func openSummaryDiskCache(path string) (*summaryDiskCache, error) {
+	return openSummaryDiskCacheAt(path, true)
+}
+
+func openExistingSummaryDiskCache(path string) (*summaryDiskCache, error) {
+	return openSummaryDiskCacheAt(path, false)
+}
+
+func openSummaryDiskCacheAt(path string, create bool) (*summaryDiskCache, error) {
 	if path == "" {
 		return nil, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return nil, err
-	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if create {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return nil, err
+		}
 		file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0600)
 		if err != nil {
 			return nil, err
 		}
 		_ = file.Close()
+	} else {
+		info, err := os.Stat(path)
+		if err != nil {
+			return nil, err
+		}
+		if info.IsDir() {
+			return nil, os.ErrInvalid
+		}
 	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -60,9 +79,14 @@ func openSummaryDiskCache(path string) (*summaryDiskCache, error) {
 }
 
 func (c *summaryDiskCache) init() error {
-	_, err := c.db.Exec(`
-PRAGMA busy_timeout = 5000;
-CREATE TABLE IF NOT EXISTS session_summaries (
+	if _, err := c.db.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+		return err
+	}
+	var check string
+	if err := c.db.QueryRow(`PRAGMA quick_check;`).Scan(&check); err != nil {
+		return err
+	}
+	_, err := c.db.Exec(`CREATE TABLE IF NOT EXISTS session_summaries (
 	path TEXT PRIMARY KEY,
 	size INTEGER NOT NULL,
 	modified_at_ns INTEGER NOT NULL,
@@ -81,6 +105,8 @@ func (c *summaryDiskCache) Close() error {
 	if c == nil || c.db == nil {
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.db.Close()
 }
 
@@ -88,6 +114,8 @@ func (c *summaryDiskCache) Lookup(path string, meta fileMeta) (SessionSummary, b
 	if c == nil || c.db == nil {
 		return SessionSummary{}, false, nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	var raw string
 	err := c.db.QueryRow(
 		`SELECT summary_json FROM session_summaries
@@ -112,6 +140,8 @@ func (c *summaryDiskCache) Upsert(path string, meta fileMeta, summary SessionSum
 	if c == nil || c.db == nil || path == "" {
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	summary.Enriched = true
 	raw, err := json.Marshal(summary)
 	if err != nil {
@@ -157,4 +187,17 @@ func cacheableSummary(summary SessionSummary, now time.Time) bool {
 	value := firstNonEmpty(summary.UpdatedAt, summary.StartedAt)
 	t, ok := parseTime(value)
 	return ok && startOfDay(t).Before(startOfDay(now))
+}
+
+func isSQLiteCorruptError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	for _, marker := range []string{"malformed", "file is not a database", "schema is corrupt"} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }

@@ -13,6 +13,7 @@ func (s *Store) Diagnostics() DiagnosticsResponse {
 	response := DiagnosticsResponse{
 		CodexHome: s.CodexHome,
 		Sources:   s.Sources(),
+		Cache:     s.CacheStatus(),
 	}
 	dbs := []struct {
 		name string

@@ -67,7 +67,11 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 ```bash
 ./output/codex_inspector -cache-path /tmp/codex_inspector_cache.sqlite
 ./output/codex_inspector -no-cache
+./output/codex_inspector -cache-workers 2
+./output/codex_inspector -cache-workers 0
 ```
+
+`-cache-workers` 控制启动后的后台自动补齐，默认是 2。设为 0 时不会自动补齐；Diagnostics 页面上的手动 build/rebuild 仍可执行一次。
 
 打开浏览器访问：
 
@@ -88,7 +92,7 @@ http://127.0.0.1:8787
 | `~/.codex/goals_1.sqlite` | schema | Diagnostics 页面只读探测 | 否 |
 | `~/.codex/memories_1.sqlite` | schema | Diagnostics 页面只读探测 | 否 |
 | `~/.codex/auth.json` | 不读取内容 | Diagnostics 只标记为排除项 | 否 |
-| 用户 cache 目录下的 `life_tools/codex_inspector/session_summary_cache.sqlite` | 脱敏 session summary、token 统计、文件大小和修改时间 | 历史数据缓存，不存 raw JSONL，不写 `~/.codex` | 是 |
+| 用户 cache 目录下的 `life_tools/codex_inspector/session_summary_cache.sqlite` | 脱敏 session summary、token 统计、文件大小和修改时间 | 历史数据缓存，不存 raw JSONL 或完整对话，不写 `~/.codex` | 是 |
 
 ## 页面说明
 
@@ -104,6 +108,25 @@ http://127.0.0.1:8787
 右上角时间范围影响统计卡片、月度趋势、最近 session 和 Sessions 列表。Activity heatmap 不跟随该筛选，固定展示最近 183 天；鼠标悬停单元格时显示日期和当日对话次数。
 
 大数字使用 `k`、`m`、`b` 简写，分别代表千、百万、十亿。精确值保留在指标悬浮提示或 raw 数据中。
+
+Diagnostics 的 Summary cache 面板展示派生 cache 生命周期：
+
+| 状态 | 页面动作 | 后端行为 |
+|---|---|---|
+| `missing` | `Create cache` | 新建 SQLite cache 并后台补齐今天以前的 rollout |
+| `healthy` | `Fill missing cache` | 只补齐缺失或过期的历史 summary |
+| `corrupt` | `Backup and rebuild cache`，二次确认 | 将损坏文件改名为 `.corrupt.<timestamp>.bak` 后新建 cache |
+| `rebuilding` | 展示进度 | 返回当前 job，不重复启动 |
+| `disabled` | 无操作按钮 | `-no-cache` 下只实时解析 JSONL |
+| `unavailable` | 无操作按钮 | 展示权限、busy timeout 或其他非损坏错误 |
+
+后端 API：
+
+| API | 方法 | 用途 |
+|---|---|---|
+| `/api/cache/status` | GET | 返回 cache 状态和 job 进度 |
+| `/api/cache/build` | POST | 创建或补齐 cache；job 运行中返回当前 job |
+| `/api/cache/rebuild` | POST | 仅用于 corrupt cache 的备份重建；job 运行中返回当前 job |
 
 ## 架构
 
@@ -133,7 +156,8 @@ flowchart TD
 - 安装脚本默认写 `$HOME/.local/bin`，不写 `/usr/local`、`/etc` 或 `/var`；系统级安装必须显式传 `--system` 或 `--allow-sudo`。
 - 不写入 `~/.codex`，不修改 session、memory、SQLite 或配置文件。
 - 不读取 `auth.json` 内容。
-- 历史 summary cache 写在用户 cache 目录或 `-cache-path` 指定位置，文件权限固定为 `0600`；缓存不包含 raw JSONL，但可能包含脱敏后的标题、cwd、preview 和 token 聚合值。
+- 历史 summary cache 写在用户 cache 目录或 `-cache-path` 指定位置，文件权限固定为 `0600`；缓存不包含 raw JSONL 或完整对话内容，只包含脱敏后的 `SessionSummary`、token 聚合、文件大小和修改时间。
+- 损坏 cache 不直接删除，只在用户触发 rebuild 时改名为 `.corrupt.<timestamp>.bak` 后重建。
 - JSON 和文本展示层会脱敏常见 `auth`、`token`、`cookie`、`password`、`secret`、`api_key`、`access_key` 字段。
 - raw JSONL 展开能力展示的是脱敏后的 JSONL，方便排查格式和事件顺序，不用于导出完整敏感内容。
 - token usage 只读取 Codex JSONL 中的结构化 `token_count` 元数据，不读取或推断账单、账号或认证信息。
@@ -167,6 +191,9 @@ flowchart TD
 | 点击 session 后一直 loading | 冷启动正在建立 session 索引，或目标 JSONL 文件过大 | 等待首次索引完成；详情接口会优先使用缓存中的 `id -> path`，避免每次点击全量扫描 |
 | token 统计为 0 | 该历史 JSONL 没有 `event_msg.type=token_count`，或格式不同 | 这是兼容性缺失，不影响对话查看；Diagnostics 和 raw JSONL 可用于确认格式 |
 | CPU 占用高 | 首次历史范围加载需要解析该范围内尚未缓存的历史 rollout；今天的数据实时解析 | 等待首次缓存写入；后续历史请求会复用 SQLite summary cache，详情只解析目标文件 |
+| cache 状态是 missing | cache 文件尚未创建 | 在 Diagnostics 点击 `Create cache` |
+| cache 状态是 corrupt | SQLite 返回明确损坏错误 | 在 Diagnostics 二次确认后点击 `Backup and rebuild cache` |
+| cache 状态是 unavailable | 权限、busy timeout 或其他非损坏错误 | 处理错误原因；页面会降级实时解析 JSONL |
 | cache 文件权限不符合预期 | 旧版本或手动创建的 cache 文件权限过宽 | 删除 cache 文件后重启，或执行 `chmod 600 <cache-path>` |
 | raw JSONL 缺少部分内容 | 单行过大时后端会限制返回长度 | 到本机文件系统只读查看原文件 |
 | SQLite schema 没有展示 | 系统没有 `sqlite3` 命令，或数据库不存在 | 安装 `sqlite3` 或忽略 schema 诊断 |
@@ -179,6 +206,7 @@ flowchart TD
 ```bash
 go test ./cli/codex_inspector
 go build -o output/codex_inspector ./cli/codex_inspector/...
+./output/codex_inspector -cache-workers 2
 ```
 
 页面验证需要启动服务后用 Chrome 检查：

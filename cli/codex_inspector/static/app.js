@@ -5,6 +5,7 @@ const state = {
   detailRequest: 0,
   memoryFiles: [],
   selectedMemory: "",
+  cachePollTimer: 0,
 };
 
 const RANGE_HISTORY_KEY = "codexInspectorRangeHistory";
@@ -31,8 +32,8 @@ function params(extra = {}) {
   return text ? `?${text}` : "";
 }
 
-async function api(path) {
-  const response = await fetch(path, { cache: "no-store" });
+async function api(path, options = {}) {
+  const response = await fetch(path, { cache: "no-store", ...options });
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `${response.status} ${response.statusText}`);
@@ -506,8 +507,95 @@ async function loadMemoryDetail(path) {
 async function loadDiagnostics() {
   const data = await api("/api/diagnostics");
   $("#sourceStatus").textContent = sourceStatusText(data.sources);
+  renderCacheStatus(data.cache);
   renderSourceTable(data.sources);
   renderSchemas(data.schemas);
+}
+
+async function loadCacheStatus() {
+  const data = await api("/api/cache/status");
+  renderCacheStatus(data);
+}
+
+async function startCacheBuild(rebuild = false) {
+  if (rebuild && !window.confirm("Backup the corrupt cache and rebuild a new cache?")) {
+    return;
+  }
+  const path = rebuild ? "/api/cache/rebuild" : "/api/cache/build";
+  const data = await api(path, { method: "POST" });
+  renderCacheStatus(data);
+  showToast(rebuild ? "Cache rebuild started" : "Cache build started");
+}
+
+function renderCacheStatus(cache) {
+  const actions = $("#cacheActions");
+  const root = $("#cacheStatus");
+  const meta = $("#cacheMeta");
+  clearTimeout(state.cachePollTimer);
+  actions.textContent = "";
+  root.textContent = "";
+
+  if (!cache) {
+    meta.textContent = "cache status unavailable";
+    root.append(el("div", "item-preview", "Cache status was not returned by the server."));
+    return;
+  }
+
+  const statusClass = cache.status === "healthy" || cache.status === "rebuilding" ? "status-ok" : "status-miss";
+  const status = el("span", `status-pill ${statusClass}`, cache.status);
+  meta.textContent = cache.path || "no cache path";
+  const summary = el("div", "cache-summary");
+  summary.append(status);
+  summary.append(el("span", "item-meta", cache.reason || (cache.autoFill ? `auto fill workers: ${cache.workers}` : `workers: ${cache.workers}`)));
+  root.append(summary);
+
+  if (cache.backupPath) {
+    root.append(el("div", "item-preview", `Backup: ${cache.backupPath}`));
+  }
+
+  renderCacheJob(root, cache.job || {});
+
+  if (cache.canBuild) {
+    const button = el("button", "primary-button", cache.status === "missing" ? "Create cache" : "Fill missing cache");
+    button.type = "button";
+    button.addEventListener("click", () => startCacheBuild(false).catch((error) => showToast(error.message)));
+    actions.append(button);
+  }
+  if (cache.canRebuild) {
+    const button = el("button", "primary-button danger-button", "Backup and rebuild cache");
+    button.type = "button";
+    button.addEventListener("click", () => startCacheBuild(true).catch((error) => showToast(error.message)));
+    actions.append(button);
+  }
+  if (cache.job?.running) {
+    const button = el("button", "primary-button", "Refreshing");
+    button.type = "button";
+    button.disabled = true;
+    actions.append(button);
+    state.cachePollTimer = setTimeout(() => {
+      if (state.page === "diagnostics") loadCacheStatus().catch((error) => showToast(error.message));
+    }, 1200);
+  }
+}
+
+function renderCacheJob(root, job) {
+  const grid = el("div", "cache-job-grid");
+  [
+    ["Total", job.total || 0],
+    ["Done", job.done || 0],
+    ["Cached", job.cached || 0],
+    ["Skipped", job.skipped || 0],
+    ["Failed", job.failed || 0],
+  ].forEach(([label, value]) => {
+    const item = el("div", "cache-job-item");
+    item.append(el("span", "metric-label", label));
+    item.append(el("strong", "", formatNumber(value)));
+    grid.append(item);
+  });
+  root.append(grid);
+  const times = [job.startedAt ? `Started ${shortDate(job.startedAt)}` : "", job.finishedAt ? `Finished ${shortDate(job.finishedAt)}` : ""].filter(Boolean).join(" · ");
+  if (times) root.append(el("div", "item-meta", times));
+  if (job.lastError) root.append(el("div", "item-preview danger-text", job.lastError));
 }
 
 function renderSourceTable(sources) {

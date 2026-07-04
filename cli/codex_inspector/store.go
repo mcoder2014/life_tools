@@ -20,8 +20,7 @@ type Store struct {
 	cond         *sync.Cond
 	loading      bool
 	sessionCache *sessionCache
-	diskCache    *summaryDiskCache
-	cacheWarning string
+	cacheManager *summaryCacheManager
 }
 
 type sessionCache struct {
@@ -42,17 +41,17 @@ func NewStore(codexHome string) *Store {
 }
 
 func NewStoreWithCache(codexHome string, cachePath string) *Store {
+	return NewStoreWithCacheWorkers(codexHome, cachePath, 0)
+}
+
+func NewStoreWithCacheWorkers(codexHome string, cachePath string, cacheWorkers int) *Store {
 	if codexHome == "" {
 		codexHome = defaultCodexHome()
 	}
 	store := &Store{CodexHome: filepath.Clean(codexHome), CachePath: cachePath}
 	store.cond = sync.NewCond(&store.mu)
-	cache, err := openSummaryDiskCache(cachePath)
-	if err != nil {
-		store.cacheWarning = fmt.Sprintf("summary cache unavailable: %v", err)
-	} else {
-		store.diskCache = cache
-	}
+	store.cacheManager = newSummaryCacheManager(cachePath, cacheWorkers)
+	store.cacheManager.StartAutoBuild(store)
 	return store
 }
 
@@ -84,8 +83,8 @@ func (s *Store) Sources() []SourceStatus {
 }
 
 func (s *Store) Close() {
-	if s.diskCache != nil {
-		_ = s.diskCache.Close()
+	if s.cacheManager != nil {
+		s.cacheManager.Close()
 	}
 }
 
@@ -151,8 +150,8 @@ func (s *Store) loadAllSessions() ([]SessionSummary, []string) {
 	s.mu.Unlock()
 
 	sessions, byID, warnings := s.buildSessionCache()
-	if s.cacheWarning != "" {
-		warnings = append(warnings, s.cacheWarning)
+	if warning := s.cacheWarning(); warning != "" {
+		warnings = append(warnings, warning)
 	}
 
 	s.mu.Lock()
@@ -214,10 +213,11 @@ func (s *Store) enrichSummaries(sessions []SessionSummary) ([]SessionSummary, []
 		if cached, ok := s.cachedSummary(summary.ID); ok && cached.Enriched && historicalFile && cacheableSummary(cached, now) {
 			enriched = cached
 		} else if summary.Path != "" {
-			if historicalFile && s.diskCache != nil {
-				cached, ok, err := s.diskCache.Lookup(summary.Path, meta)
+			if cache := s.diskCache(); historicalFile && cache != nil {
+				cached, ok, err := cache.Lookup(summary.Path, meta)
 				if err != nil {
 					warnings = append(warnings, fmt.Sprintf("cache lookup %s: %v", summary.Path, err))
+					s.reportCacheError(err)
 				}
 				if ok && cacheableSummary(cached, now) {
 					detail := SessionDetail{Summary: cached}
@@ -237,9 +237,10 @@ func (s *Store) enrichSummaries(sessions []SessionSummary) ([]SessionSummary, []
 				enriched = detail.Summary
 				enriched.Enriched = true
 				s.updateCachedSummary(enriched)
-				if historicalFile && cacheableSummary(enriched, now) && s.diskCache != nil {
-					if err := s.diskCache.Upsert(summary.Path, meta, enriched); err != nil {
+				if cache := s.diskCache(); historicalFile && cacheableSummary(enriched, now) && cache != nil {
+					if err := cache.Upsert(summary.Path, meta, enriched); err != nil {
 						warnings = append(warnings, fmt.Sprintf("cache write %s: %v", summary.Path, err))
+						s.reportCacheError(err)
 					}
 				}
 			}
@@ -247,6 +248,174 @@ func (s *Store) enrichSummaries(sessions []SessionSummary) ([]SessionSummary, []
 		out = append(out, enriched)
 	}
 	return out, warnings
+}
+
+func (s *Store) diskCache() *summaryDiskCache {
+	if s.cacheManager == nil {
+		return nil
+	}
+	return s.cacheManager.DiskCache()
+}
+
+func (s *Store) reportCacheError(err error) {
+	if s.cacheManager != nil {
+		s.cacheManager.ReportRuntimeError(err)
+	}
+}
+
+func (s *Store) cacheWarning() string {
+	if s.cacheManager == nil {
+		return ""
+	}
+	status := s.cacheManager.Status()
+	switch status.Status {
+	case cacheStatusCorrupt, cacheStatusUnavailable:
+		if status.Reason != "" {
+			return fmt.Sprintf("summary cache %s: %s", status.Status, status.Reason)
+		}
+		return fmt.Sprintf("summary cache %s", status.Status)
+	default:
+		return ""
+	}
+}
+
+func (s *Store) CacheStatus() CacheStatus {
+	if s.cacheManager == nil {
+		return CacheStatus{Status: cacheStatusDisabled, Reason: "cache manager unavailable", GeneratedAt: time.Now().Format(time.RFC3339)}
+	}
+	return s.cacheManager.Status()
+}
+
+func (s *Store) StartCacheBuild() CacheStatus {
+	if s.cacheManager == nil {
+		return s.CacheStatus()
+	}
+	return s.cacheManager.StartBuild(s, false)
+}
+
+func (s *Store) StartCacheRebuild() CacheStatus {
+	if s.cacheManager == nil {
+		return s.CacheStatus()
+	}
+	return s.cacheManager.StartBuild(s, true)
+}
+
+func (s *Store) runCacheBuild(seq int, workers int) {
+	tasks, skipped, failed, lastError := s.cacheBuildTasks()
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > 16 {
+		workers = 16
+	}
+	s.cacheManager.setJobTotal(seq, len(tasks)+skipped+failed)
+	for i := 0; i < skipped; i++ {
+		s.cacheManager.addJobProgress(seq, 0, 1, 0, "")
+	}
+	for i := 0; i < failed; i++ {
+		s.cacheManager.addJobProgress(seq, 0, 0, 1, lastError)
+	}
+	if len(tasks) == 0 || s.diskCache() == nil {
+		s.cacheManager.finishJob(seq, lastError)
+		return
+	}
+
+	taskCh := make(chan cacheBuildTask)
+	resultCh := make(chan cacheBuildResult)
+	var wg sync.WaitGroup
+	now := time.Now()
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for task := range taskCh {
+				detail, err := ParseRolloutFile(task.Path, false)
+				if err != nil {
+					resultCh <- cacheBuildResult{Path: task.Path, Meta: task.Meta, Error: err.Error()}
+					continue
+				}
+				mergeCachedSummary(&detail, task.Summary)
+				detail.Summary.Enriched = true
+				if !cacheableSummary(detail.Summary, now) {
+					resultCh <- cacheBuildResult{Path: task.Path, Meta: task.Meta, Error: "session is not historical"}
+					continue
+				}
+				resultCh <- cacheBuildResult{Path: task.Path, Meta: task.Meta, Summary: detail.Summary}
+			}
+		}()
+	}
+
+	go func() {
+		for _, task := range tasks {
+			taskCh <- task
+		}
+		close(taskCh)
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for result := range resultCh {
+		if result.Error != "" {
+			s.cacheManager.addJobProgress(seq, 0, 0, 1, result.Error)
+			lastError = result.Error
+			continue
+		}
+		cache := s.diskCache()
+		if cache == nil {
+			lastError = "cache unavailable"
+			s.cacheManager.addJobProgress(seq, 0, 0, 1, lastError)
+			continue
+		}
+		if err := cache.Upsert(result.Path, result.Meta, result.Summary); err != nil {
+			lastError = err.Error()
+			s.reportCacheError(err)
+			s.cacheManager.addJobProgress(seq, 0, 0, 1, lastError)
+			continue
+		}
+		s.updateCachedSummary(result.Summary)
+		s.cacheManager.addJobProgress(seq, 1, 0, 0, "")
+	}
+	s.cacheManager.finishJob(seq, lastError)
+}
+
+func (s *Store) cacheBuildTasks() ([]cacheBuildTask, int, int, string) {
+	index, _ := s.readSessionIndex()
+	files, _ := s.rolloutFiles()
+	now := time.Now()
+	cache := s.diskCache()
+	if cache == nil {
+		return nil, 0, 1, "cache unavailable"
+	}
+	tasks := make([]cacheBuildTask, 0, len(files))
+	skipped := 0
+	failed := 0
+	lastError := ""
+	for _, path := range files {
+		meta, ok := statFile(path)
+		if !ok || !cacheableFile(meta, now) {
+			continue
+		}
+		if cached, ok, err := cache.Lookup(path, meta); err != nil {
+			lastError = err.Error()
+			failed++
+			s.reportCacheError(err)
+			break
+		} else if ok && cacheableSummary(cached, now) {
+			skipped++
+			continue
+		}
+
+		summary := summaryFromPath(path)
+		if summary.ID == "" {
+			summary.ID = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		}
+		summary.Path = path
+		if item, ok := index[summary.ID]; ok {
+			mergeIndex(&summary, item)
+		}
+		tasks = append(tasks, cacheBuildTask{Path: path, Meta: meta, Summary: summary})
+	}
+	return tasks, skipped, failed, lastError
 }
 
 func (s *Store) cachedSummary(id string) (SessionSummary, bool) {

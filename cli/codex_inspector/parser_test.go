@@ -90,13 +90,16 @@ func TestHistoricalSessionSummaryIsCachedInSQLite(t *testing.T) {
 	cachePath := filepath.Join(t.TempDir(), "summary.sqlite")
 	store := NewStoreWithCache(codexHome, cachePath)
 	sessions, warnings := store.LoadSessions(parseFilter("2000-01-01", "2000-01-02", "", 0))
+	store.StartCacheBuild()
+	status := waitCacheJob(t, store)
 	store.Close()
 
 	require.Empty(t, warnings)
 	require.Len(t, sessions, 1)
 	require.Equal(t, 1, sessions[0].UserMessages)
+	require.Equal(t, cacheStatusHealthy, status.Status)
 
-	cache, err := openSummaryDiskCache(cachePath)
+	cache, err := openExistingSummaryDiskCache(cachePath)
 	require.NoError(t, err)
 	defer cache.Close()
 	meta, ok := statFile(path)

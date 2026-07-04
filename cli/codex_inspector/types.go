@@ -151,6 +151,7 @@ type DiagnosticsResponse struct {
 	CodexHome string         `json:"codexHome"`
 	Sources   []SourceStatus `json:"sources"`
 	Schemas   []SQLiteSchema `json:"schemas"`
+	Cache     CacheStatus    `json:"cache"`
 	Warnings  []string       `json:"warnings,omitempty"`
 }
 
@@ -162,4 +163,29 @@ type SQLiteSchema struct {
 	Schema   string `json:"schema,omitempty"`
 	Error    string `json:"error,omitempty"`
 	ReadMode string `json:"readMode"`
+}
+
+type CacheStatus struct {
+	Status      string        `json:"status"`
+	Path        string        `json:"path,omitempty"`
+	Workers     int           `json:"workers"`
+	Reason      string        `json:"reason,omitempty"`
+	BackupPath  string        `json:"backupPath,omitempty"`
+	CanBuild    bool          `json:"canBuild"`
+	CanRebuild  bool          `json:"canRebuild"`
+	AutoFill    bool          `json:"autoFill"`
+	GeneratedAt string        `json:"generatedAt"`
+	Job         CacheJobState `json:"job"`
+}
+
+type CacheJobState struct {
+	Running    bool   `json:"running"`
+	Total      int    `json:"total"`
+	Done       int    `json:"done"`
+	Cached     int    `json:"cached"`
+	Skipped    int    `json:"skipped"`
+	Failed     int    `json:"failed"`
+	StartedAt  string `json:"startedAt,omitempty"`
+	FinishedAt string `json:"finishedAt,omitempty"`
+	LastError  string `json:"lastError,omitempty"`
 }
