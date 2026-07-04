@@ -11,6 +11,7 @@
 - `InterviewTimer`：macOS 图形应用，需要 macOS 13+ 和 Swift/Apple 开发工具链，不由根目录 `install.sh` 默认安装。
 - 默认安装路径：可执行文件放到 `/usr/local/bin`，Python 工具文件放到 `/usr/local/lib/life_tools`。
 - 默认配置路径：`/etc/life_tools`，可用 `--config-dir` 改变安装脚本写入位置。
+- `codex_inspector` 是实验工具，使用 `cli/codex_inspector/install.sh` 单独安装；默认安装到 `$HOME/.local/bin`，不写系统目录。
 
 写入 `/usr/local`、`/etc/life_tools` 和 Linux 的 `/var/log` 时可能需要 `sudo`。脚本会在需要时调用 `sudo`，不会覆盖已经存在的配置文件。
 
@@ -87,7 +88,40 @@ file_share -config /etc/life_tools/file_share.json
 
 `codex_inspector` 是实验工具，用来在本机浏览器里只读查看 Codex 会话、活跃度统计和记忆内容。它不在 `install.sh` 默认稳定安装清单中，也不会写入 `~/.codex`。
 
-构建和启动：
+快速安装：
+
+```bash
+./cli/codex_inspector/install.sh
+codex_inspector -addr 127.0.0.1:8787
+```
+
+默认安装路径是：
+
+```text
+$HOME/.local/bin/codex_inspector
+```
+
+macOS 和 Linux 权限策略一致：默认只写当前用户目录，不调用 `sudo`。如果目标目录不在 `PATH` 中，脚本会打印需要加入 shell profile 的提示。
+
+安装到自定义用户目录：
+
+```bash
+./cli/codex_inspector/install.sh --prefix "$HOME/.local"
+```
+
+系统级安装必须显式确认：
+
+```bash
+./cli/codex_inspector/install.sh --system
+```
+
+`--system` 会安装到 `/usr/local/bin/codex_inspector`，并在目录不可写时使用 `sudo`。如果使用其他系统目录，可以组合 `--prefix` 和 `--allow-sudo`：
+
+```bash
+./cli/codex_inspector/install.sh --prefix /opt/life_tools --allow-sudo
+```
+
+也可以不安装，直接构建和启动：
 
 ```bash
 go build -o output/codex_inspector ./cli/codex_inspector/...
@@ -106,6 +140,13 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 ./output/codex_inspector -cache-path /tmp/codex_inspector_cache.sqlite
 ./output/codex_inspector -no-cache
 ```
+
+默认 cache 路径按系统走用户缓存目录：
+
+| 系统 | 默认 cache |
+|---|---|
+| macOS | `~/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite` |
+| Linux | `${XDG_CACHE_HOME:-~/.cache}/life_tools/codex_inspector/session_summary_cache.sqlite` |
 
 安全边界：
 

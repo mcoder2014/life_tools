@@ -16,6 +16,27 @@
 
 ## 启动方式
 
+快速安装到用户级目录：
+
+```bash
+./cli/codex_inspector/install.sh
+codex_inspector -addr 127.0.0.1:8787
+```
+
+默认安装到 `$HOME/.local/bin/codex_inspector`。脚本支持 macOS 和 Linux，默认只写当前用户目录；只有显式传 `--system` 或 `--allow-sudo` 时，才会尝试使用 `sudo` 写系统目录。
+
+自定义安装目录：
+
+```bash
+./cli/codex_inspector/install.sh --prefix "$HOME/.local"
+```
+
+系统级安装：
+
+```bash
+./cli/codex_inspector/install.sh --system
+```
+
 从仓库根目录构建：
 
 ```bash
@@ -34,11 +55,12 @@ go build -o output/codex_inspector ./cli/codex_inspector/...
 ./output/codex_inspector -codex-home /tmp/codex-inspector-fixture -addr 127.0.0.1:8787
 ```
 
-历史 session summary 会缓存到本机 SQLite 文件，用于减少重复解析历史 rollout。默认路径是：
+历史 session summary 会缓存到本机 SQLite 文件，用于减少重复解析历史 rollout。默认路径由 Go 的 `os.UserCacheDir()` 决定：
 
-```text
-~/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite
-```
+| 系统 | 默认 cache |
+|---|---|
+| macOS | `~/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite` |
+| Linux | `${XDG_CACHE_HOME:-~/.cache}/life_tools/codex_inspector/session_summary_cache.sqlite` |
 
 可以显式指定或禁用：
 
@@ -66,7 +88,7 @@ http://127.0.0.1:8787
 | `~/.codex/goals_1.sqlite` | schema | Diagnostics 页面只读探测 | 否 |
 | `~/.codex/memories_1.sqlite` | schema | Diagnostics 页面只读探测 | 否 |
 | `~/.codex/auth.json` | 不读取内容 | Diagnostics 只标记为排除项 | 否 |
-| `~/Library/Caches/life_tools/codex_inspector/session_summary_cache.sqlite` | 脱敏 session summary、token 统计、文件大小和修改时间 | 历史数据缓存，不存 raw JSONL，不写 `~/.codex` | 是 |
+| 用户 cache 目录下的 `life_tools/codex_inspector/session_summary_cache.sqlite` | 脱敏 session summary、token 统计、文件大小和修改时间 | 历史数据缓存，不存 raw JSONL，不写 `~/.codex` | 是 |
 
 ## 页面说明
 
@@ -108,6 +130,7 @@ flowchart TD
 
 - 默认监听 `127.0.0.1`，只服务当前用户。
 - 不实现登录、账号或权限系统，不适合暴露到局域网或公网。
+- 安装脚本默认写 `$HOME/.local/bin`，不写 `/usr/local`、`/etc` 或 `/var`；系统级安装必须显式传 `--system` 或 `--allow-sudo`。
 - 不写入 `~/.codex`，不修改 session、memory、SQLite 或配置文件。
 - 不读取 `auth.json` 内容。
 - 历史 summary cache 写在用户 cache 目录或 `-cache-path` 指定位置，文件权限固定为 `0600`；缓存不包含 raw JSONL，但可能包含脱敏后的标题、cwd、preview 和 token 聚合值。

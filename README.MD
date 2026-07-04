@@ -61,7 +61,21 @@
 | `build.sh` | 构建 Go CLI 工具到 `output/`。 |
 | `install.sh` | 安装 CLI 工具、示例配置和可选 hook。 |
 
-`codex_inspector` 当前是实验工具，不在 `install.sh` 默认稳定安装清单中。需要试用时单独构建：
+`codex_inspector` 当前是实验工具，不在根目录 `install.sh` 默认稳定安装清单中。需要快速试用时使用专用安装脚本，默认安装到用户级目录 `$HOME/.local/bin`，不会写 `/usr/local`、`/etc`，也不会主动 sudo：
+
+```bash
+./cli/codex_inspector/install.sh
+codex_inspector -addr 127.0.0.1:8787
+```
+
+macOS 和 Linux 都支持自定义前缀；只有显式传 `--system` 或 `--allow-sudo` 时才会尝试写系统目录：
+
+```bash
+./cli/codex_inspector/install.sh --prefix "$HOME/.local"
+./cli/codex_inspector/install.sh --system
+```
+
+也可以不安装，直接单独构建：
 
 ```bash
 go build -o output/codex_inspector ./cli/codex_inspector/...
