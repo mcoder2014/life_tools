@@ -1,0 +1,58 @@
+name: Alfred Workflow
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/alfred-workflow.yml'
+      - '.github/workflows/release.yml'
+      - 'plugins/alfred_remote_upload/**'
+      - 'docs/plugins/alfred_remote_upload.md'
+      - 'docs/specs/2026-07-14-alfred-remote-upload-design.md'
+      - 'docs/release.md'
+      - 'README.MD'
+      - 'AGENTS.md'
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/alfred-workflow.yml'
+      - 'plugins/alfred_remote_upload/**'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and package Alfred workflow
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check shell syntax
+        run: |
+          bash -n plugins/alfred_remote_upload/build.sh
+          bash -n plugins/alfred_remote_upload/tests/clipboard_integration.sh
+          bash -n plugins/alfred_remote_upload/tests/run.sh
+          bash -n plugins/alfred_remote_upload/tests/fakes/*
+          bash -n plugins/alfred_remote_upload/workflow/scripts/*.sh
+
+      - name: Run offline tests
+        run: plugins/alfred_remote_upload/tests/run.sh
+
+      - name: Run clipboard integration tests
+        run: plugins/alfred_remote_upload/tests/clipboard_integration.sh
+
+      - name: Build and inspect package
+        run: |
+          artifact="$RUNNER_TEMP/life_tools_alfred_remote_upload_ci.alfredworkflow"
+          plugins/alfred_remote_upload/build.sh "$artifact"
+          plutil -lint plugins/alfred_remote_upload/workflow/info.plist
+          unzip -t "$artifact"
+
+      - name: Upload dry-run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: life_tools_alfred_remote_upload_ci
+          path: ${{ runner.temp }}/life_tools_alfred_remote_upload_ci.alfredworkflow
+          if-no-files-found: error

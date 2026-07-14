@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [[ "${FAKE_SCP_FAIL:-0}" == "1" ]]; then
+  exit 72
+fi
+
+previous=""
+current=""
+sftp_mode=false
+for argument in "$@"; do
+  if [[ "$argument" == "-s" ]]; then
+    sftp_mode=true
+  fi
+  previous="$current"
+  current="$argument"
+done
+
+if [[ "${FAKE_REQUIRE_SFTP:-0}" == "1" && "$sftp_mode" != "true" ]]; then
+  exit 74
+fi
+
+source_path="$previous"
+remote_path="${current#*:}"
+/bin/cp "$source_path" "$remote_path"

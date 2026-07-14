@@ -1,0 +1,5 @@
+#!/bin/bash
+
+set -euo pipefail
+
+printf '%s\t%s\n' "$1" "$2" >> "${FAKE_NOTIFICATION_OUTPUT:?}"

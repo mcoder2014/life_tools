@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [[ "${FAKE_CLIPBOARD_FAIL:-0}" == "1" ]]; then
+  echo "剪贴板中没有可上传的单个文件或图片" >&2
+  exit 1
+fi
+
+printf '%s\037%s\037%s\037%s\n' \
+  "${FAKE_SOURCE_KIND:?}" \
+  "${FAKE_SOURCE_PATH:?}" \
+  "${FAKE_SOURCE_EXTENSION:-}" \
+  "${FAKE_SOURCE_TEMPORARY:-0}"

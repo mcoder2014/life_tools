@@ -20,6 +20,7 @@
 - `cli/codex_inspector/`：本机 Codex 历史会话、活跃度和记忆内容只读查看工具，当前是实验 CLI，不进默认安装清单。
 - `cli/video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/cli/video_subtitle.md`。
 - `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/plugins/emby_video_subtitle.md`。
+- `plugins/alfred_remote_upload/`：Alfred 5 Workflow，将剪贴板中的图片或 Finder 单文件上传到 SSH 主机，详细说明见 `docs/plugins/alfred_remote_upload.md`。
 - `gui/interview_timer/`：macOS 面试悬浮计时 GUI 应用，说明见 `docs/gui/interview_timer.md`。
 - `docs/cli/`：CLI 工具文档。
 - `docs/plugins/`：插件程序文档。
@@ -67,6 +68,15 @@ macOS App 不走根目录 `build.sh`。修改 `gui/interview_timer` 时在该目
 swift test
 swift build --product InterviewTimerApp
 ./scripts/build_app.sh
+```
+
+Alfred Workflow 也不走根目录 `build.sh`。修改 `plugins/alfred_remote_upload` 时运行：
+
+```bash
+plugins/alfred_remote_upload/tests/run.sh
+plugins/alfred_remote_upload/tests/clipboard_integration.sh
+plugins/alfred_remote_upload/build.sh
+plutil -lint plugins/alfred_remote_upload/workflow/info.plist
 ```
 
 ## Go 代码规则
@@ -160,6 +170,7 @@ emby_plugins/video_subtitle/install.sh --help
 
 `.github/workflows/release.yml` 负责 tag 发布，不是普通 CI。修改发布流程时要同时关注 Go、Python `video_subtitle` 和 Emby 插件三类产物。
 `.github/workflows/swift-mac-app.yml` 负责 `gui/interview_timer` 的 Swift 单测、编译和未签名 `.app` 发布。
+`.github/workflows/alfred-workflow.yml` 负责 `plugins/alfred_remote_upload` 的 macOS 离线测试、plist 校验和打包验证。
 
 - tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
 - Go 测试放在 `.github/workflows/go-test.yml`，PR 时必须真实运行 `go test ./...`，不能做成只提醒不阻塞的 reminder。
@@ -168,6 +179,7 @@ emby_plugins/video_subtitle/install.sh --help
 - `video_subtitle` 只能按源码包发布，不能宣传成免依赖二进制；它仍依赖 Python、ffmpeg、TOS、ASR 和 LLM 配置。
 - Emby 插件包只放 `LifeTools.Emby.VideoSubtitle.Emby.dll` 和文档，不要把 `MediaBrowser.*`、`Emby.*` 或核心库 DLL 打进插件发布包。
 - `InterviewTimer` macOS App 只在 macOS runner 上构建，tag 发布包为未签名的 `InterviewTimer.app` zip，不要把它塞进根目录 `install.sh` 或 Go 二进制发布包。
+- Alfred Workflow 只依赖 macOS/JXA/OpenSSH，发布资产名为 `life_tools_alfred_remote_upload_<tag>.alfredworkflow`；用户主机配置和 MRU 状态不能进入安装包，也不要把它加入根目录 CLI 安装脚本。
 - 新增 CLI、构建入口、release 产物或测试要求时，必须检查 `.github/workflows/*` 是否需要同步，避免代码合入后没有 CI 或 tag 发布产物缺失。
 - 修改发布包内容时同步更新 `docs/release.md` 和 README 的发布入口。
 - 发布 workflow 需要 `permissions: contents: write`，不要扩大到无关权限。
