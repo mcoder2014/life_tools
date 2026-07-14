@@ -1,6 +1,6 @@
 # life_tools
 
-个人日常使用的小工具集合，按应用类型组织源码：命令行程序放在 `cli/`，插件程序放在 `emby_plugins/`，图形界面程序放在 `gui/`。
+个人日常使用的小工具集合，按应用类型组织源码：命令行程序放在 `cli/`，独立插件放在 `plugins/`，Emby 插件放在 `emby_plugins/`，图形界面程序放在 `gui/`。
 
 ## 界面预览
 
@@ -58,6 +58,7 @@
 | CLI | `file_share` | `cli/file_share/` | `file_share` | 临时启动只读 HTTP 文件分享服务 | [docs/cli/file_share.md](docs/cli/file_share.md) |
 | CLI | `video_subtitle` | `cli/video_subtitle/` | `video_subtitle` | 为单个视频生成简体中文字幕 | [docs/cli/video_subtitle.md](docs/cli/video_subtitle.md) |
 | Experimental CLI | `codex_inspector` | `cli/codex_inspector/` | `codex_inspector` | 本机只读查看 Codex 会话、token 用量、活跃度和记忆内容 | [docs/cli/codex_inspector.md](docs/cli/codex_inspector.md) |
+| Plugin | Alfred Remote Upload | `plugins/alfred_remote_upload/` | `Remote Upload.alfredworkflow` | 将剪贴板图片或 Finder 单文件上传到 SSH 主机，并复制远端路径 | [docs/plugins/alfred_remote_upload.md](docs/plugins/alfred_remote_upload.md) |
 | Plugin | Emby 字幕插件 | `emby_plugins/video_subtitle/` | `LifeTools.Emby.VideoSubtitle.Emby.dll` | 在 Emby 后台调用 `video_subtitle` 生成字幕 | [docs/plugins/emby_video_subtitle.md](docs/plugins/emby_video_subtitle.md) |
 | GUI | InterviewTimer | `gui/interview_timer/` | `InterviewTimer.app` | macOS 面试悬浮计时器 | [docs/gui/interview_timer.md](docs/gui/interview_timer.md) |
 
@@ -66,6 +67,7 @@
 | 路径 | 内容 |
 |---|---|
 | `cli/` | 命令行工具源码。Go CLI 和 Python CLI 都放在这里。 |
+| `plugins/` | 独立插件源码。Alfred Workflow 放在这里。 |
 | `emby_plugins/` | 插件类应用源码。当前只有 Emby 字幕插件。 |
 | `gui/` | GUI 应用源码。当前只有 InterviewTimer macOS App。 |
 | `docs/cli/` | CLI 工具的设计、结构、流程和使用文档。 |
@@ -140,8 +142,16 @@ swift build --product InterviewTimerApp
 ./scripts/build_app.sh
 ```
 
+Alfred Remote Upload 验证与打包：
+
+```bash
+plugins/alfred_remote_upload/tests/run.sh
+plugins/alfred_remote_upload/tests/clipboard_integration.sh
+plugins/alfred_remote_upload/build.sh
+```
+
 具体工具的测试和排障入口见各自详细文档。
 
 ## 发布
 
-推送 `v*` tag 会通过 GitHub Actions 构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包、Emby 插件包和未签名的 `InterviewTimer.app` 包。Go 二进制包包含 `codex_inspector`，但它仍是实验工具，不进入默认安装清单。发布流程见 [docs/release.md](docs/release.md)。
+推送 `v*` tag 会通过 GitHub Actions 构建 GitHub Release 资产，包括 Linux/macOS Go 二进制包、`video_subtitle` 源码包、Emby 插件包、Alfred Workflow 和未签名的 `InterviewTimer.app` 包。Go 二进制包包含 `codex_inspector`，但它仍是实验工具，不进入默认安装清单。发布流程见 [docs/release.md](docs/release.md)。

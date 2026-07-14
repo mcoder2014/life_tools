@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [[ "${FAKE_SSH_FAIL:-0}" == "1" ]]; then
+  exit 70
+fi
+
+script_file="$(mktemp "${TMPDIR:-/tmp}/alfred-remote-upload-fake-ssh.XXXXXX")"
+trap 'rm -f "$script_file"' EXIT
+/bin/cat > "$script_file"
+
+if [[ "${FAKE_SSH_FAIL_COMMIT:-0}" == "1" ]] && /usr/bin/grep -q "^action='commit'$" "$script_file"; then
+  exit 71
+fi
+
+if [[ "${FAKE_RESERVE_CHMOD_FAIL:-0}" == "1" ]] && /usr/bin/grep -q "^action='reserve'$" "$script_file"; then
+  /usr/bin/sed 's/chmod 0600 /false /' "$script_file" > "$script_file.failed-chmod"
+  /bin/mv "$script_file.failed-chmod" "$script_file"
+fi
+
+if [[ -n "${FAKE_TAMPER_RESERVE_PATH:-}" ]] && /usr/bin/grep -q "^action='reserve'$" "$script_file"; then
+  printf 'ARU1\037%s\037\n' "$FAKE_TAMPER_RESERVE_PATH"
+  exit 0
+fi
+
+/bin/sh "$script_file"

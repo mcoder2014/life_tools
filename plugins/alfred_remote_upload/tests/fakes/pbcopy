@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [[ "${FAKE_PBCOPY_FAIL:-0}" == "1" ]]; then
+  exit 73
+fi
+
+/bin/cat > "${FAKE_CLIPBOARD_OUTPUT:?}"

@@ -1,6 +1,6 @@
 # 发布说明
 
-本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并把 zip 上传到 GitHub Release。PR 会执行 Go 单测和发布包打包 dry-run，但不会创建 Release。Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。Swift macOS App 使用独立 workflow 验证和上传未签名 `.app` 产物。
+本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并上传到 GitHub Release。PR 会执行 Go 单测和发布包打包 dry-run，但不会创建 Release。Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。Swift macOS App 和 Alfred Workflow 使用独立的 macOS workflow 验证。
 
 ## 触发方式
 
@@ -18,6 +18,7 @@ workflow 文件：
 ```text
 .github/workflows/release.yml
 .github/workflows/swift-mac-app.yml
+.github/workflows/alfred-workflow.yml
 ```
 
 触发条件：
@@ -37,15 +38,18 @@ on:
       - '**/*.go'
       - 'cli/video_subtitle/**'
       - 'emby_plugins/video_subtitle/**'
+      - 'plugins/alfred_remote_upload/**'
       - 'sample/life_tools/**'
   push:
     tags:
       - 'v*'
 ```
 
-`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，失败会阻塞 PR。Python 单元测试由 `.github/workflows/python-test.yml` 单独执行，失败时只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
+`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才进入独立的 `Publish GitHub release` job，执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，失败会阻塞 PR。Python 单元测试由 `.github/workflows/python-test.yml` 单独执行，失败时只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
 
 `swift-mac-app.yml` 使用 `macos-latest` runner。PR 和 `master` 推送会验证 `gui/interview_timer` 的 Swift 单测、可执行产物构建和 `.app` 打包；`v*` tag 会额外上传未签名的 `InterviewTimer.app` zip。
+
+`alfred-workflow.yml` 使用 `macos-latest` runner。相关 PR 会检查 JXA、Shell、plist、离线测试和 `.alfredworkflow` 打包，并上传 dry-run artifact；不会创建 tag 或 Release。
 
 ## 发布操作流程
 
@@ -77,6 +81,7 @@ life_tools_darwin_amd64_<tag>.zip
 life_tools_darwin_arm64_<tag>.zip
 life_tools_video_subtitle_source_<tag>.zip
 life_tools_emby_video_subtitle_plugin_<tag>.zip
+life_tools_alfred_remote_upload_<tag>.alfredworkflow
 life_tools_interview_timer_macos_<tag>.zip
 life_tools_interview_timer_macos_<tag>.sha256
 checksums.txt
@@ -116,6 +121,8 @@ InterviewTimer.app
 
 该包由 `gui/interview_timer/scripts/build_app.sh` 生成，当前不做代码签名和 notarization。macOS 首次打开时可能需要用户在系统安全设置中手动允许。
 
+Alfred 产物是可直接导入 Alfred 5 的 `life_tools_alfred_remote_upload_<tag>.alfredworkflow`。用户的 `hosts_json` 和 MRU 状态由 Alfred 及其 workflow data 目录管理，不进入发布包。
+
 ## CI 验证
 
 发布前 release workflow 会运行：
@@ -147,15 +154,25 @@ Python 测试提示 workflow 会运行：
 python3 -m unittest cli/video_subtitle/video_subtitle_test.py
 ```
 
+Alfred Workflow macOS CI 会运行：
+
+```bash
+plugins/alfred_remote_upload/tests/run.sh
+plugins/alfred_remote_upload/tests/clipboard_integration.sh
+plugins/alfred_remote_upload/build.sh
+plutil -lint plugins/alfred_remote_upload/workflow/info.plist
+unzip -t /tmp/life_tools_alfred_remote_upload_ci.alfredworkflow
+```
+
 Go 测试失败会阻塞 PR；Python 测试失败时只写 GitHub warning 和 summary，不阻塞 release workflow，也不阻止 tag 发布资产。
 
 ## 权限
 
-Release workflow 需要：
+Release workflow 顶层和构建 job 只需要只读权限：
 
 ```yaml
 permissions:
-  contents: write
+  contents: read
 ```
 
-这是 `gh release create` 和 `gh release upload` 上传资产所需的最小仓库权限。
+只有 tag 触发的 `publish` job 提升为 `contents: write`，并通过 `GH_REPO` 显式指定当前仓库，用于 `gh release create` 和 `gh release upload`。PR dry-run 不具备仓库写权限。

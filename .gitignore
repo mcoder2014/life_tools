@@ -108,5 +108,6 @@ gui/**/.swiftpm/
 gui/**/dist/
 gui/**/*.xcodeproj/
 gui/**/*.xcworkspace/
+plugins/**/dist/
 *.app
 *.dSYM/
