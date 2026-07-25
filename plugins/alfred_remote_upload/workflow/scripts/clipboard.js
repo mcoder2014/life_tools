@@ -35,19 +35,29 @@ function clipboardTypes(pasteboard) {
 }
 
 function finderFilePaths(pasteboard) {
-  const classes = $.NSArray.arrayWithObject($.NSURL);
+  const classes = $.NSMutableArray.array;
+  classes.addObject($.NSURL);
+  classes.addObject($.NSPasteboardItem);
   const options = $.NSDictionary.dictionaryWithObjectForKey(
     $.NSNumber.numberWithBool(true),
     $.NSPasteboardURLReadingFileURLsOnlyKey
   );
-  const urls = pasteboard.readObjectsForClassesOptions(classes, options);
+  const objects = pasteboard.readObjectsForClassesOptions(classes, options);
   const paths = [];
-  if (!urls) {
+  if (!objects) {
     return paths;
   }
-  for (let index = 0; index < Number(urls.count); index += 1) {
-    const url = urls.objectAtIndex(index);
-    paths.push(ObjC.unwrap(url.path));
+  for (let index = 0; index < Number(objects.count); index += 1) {
+    const object = objects.objectAtIndex(index);
+    if (object.isKindOfClass($.NSURL)) {
+      paths.push(ObjC.unwrap(object.path));
+      continue;
+    }
+    const rawUrl = object.stringForType($.NSPasteboardTypeFileURL);
+    const url = rawUrl ? $.NSURL.URLWithString(rawUrl) : null;
+    if (url && url.isFileURL) {
+      paths.push(ObjC.unwrap(url.path));
+    }
   }
   return paths;
 }
