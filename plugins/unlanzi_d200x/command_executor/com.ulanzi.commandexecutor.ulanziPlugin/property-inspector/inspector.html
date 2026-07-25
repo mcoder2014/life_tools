@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    >
+    <title>命令执行器</title>
+    <link rel="stylesheet" href="../libs/css/uspi.css">
+    <link rel="stylesheet" href="./inspector.css">
+  </head>
+  <body>
+    <div class="udpi-wrapper uspi-wrapper hidden">
+      <h1 class="panel-title" data-localize="page.title">命令执行器</h1>
+      <form id="property-inspector">
+        <div class="uspi-item">
+          <label
+            class="uspi-item-label"
+            for="title"
+            data-localize="field.title.label"
+          >按键标题</label>
+          <input
+            class="uspi-item-value"
+            id="title"
+            name="title"
+            type="text"
+            autocomplete="off"
+            data-localize="field.title.placeholder"
+            placeholder="执行命令"
+          >
+        </div>
+
+        <div class="uspi-item">
+          <label
+            class="uspi-item-label"
+            for="command"
+            data-localize="field.command.label"
+          >命令（含参数）</label>
+          <textarea
+            class="uspi-item-value"
+            id="command"
+            name="command"
+            rows="10"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            data-localize="field.command.placeholder"
+            placeholder="输入完整 Shell 命令"
+          ></textarea>
+        </div>
+        <p class="field-hint" data-localize="field.command.hint">
+          支持完整 Shell 语法、多行命令及包含 100～200 个参数的长命令。
+        </p>
+
+        <div class="uspi-item">
+          <label
+            class="uspi-item-label"
+            for="workingDirectory"
+            data-localize="field.cwd.label"
+          >工作目录</label>
+          <input
+            class="uspi-item-value"
+            id="workingDirectory"
+            name="workingDirectory"
+            type="text"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            data-localize="field.cwd.placeholder"
+            placeholder="留空使用 $HOME，或填写绝对路径、~/..."
+          >
+        </div>
+
+        <div class="uspi-item">
+          <label
+            class="uspi-item-label"
+            for="environment"
+            data-localize="field.environment.label"
+          >环境变量</label>
+          <textarea
+            class="uspi-item-value environment-field"
+            id="environment"
+            name="environment"
+            rows="6"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            data-localize="field.environment.placeholder"
+            placeholder="每行一个 NAME=VALUE"
+          ></textarea>
+        </div>
+        <p class="field-hint" data-localize="field.environment.hint">
+          按第一个等号拆分；同名变量以后出现的值为准。
+        </p>
+
+        <p
+          class="diagnostic"
+          id="validation-message"
+          role="status"
+          aria-live="polite"
+        ></p>
+
+        <p class="section-label" data-localize="preview.title">执行预览</p>
+        <pre
+          class="preview"
+          id="execution-preview"
+          aria-label="执行预览"
+        ></pre>
+        <p class="security-notice" data-localize="security.notice">
+          安全提示：命令将以当前 macOS 用户权限执行，保存前请确认命令来源可信。
+        </p>
+      </form>
+    </div>
+
+    <script src="../libs/js/constants.js"></script>
+    <script src="../libs/js/eventEmitter.js"></script>
+    <script src="../libs/js/timers.js"></script>
+    <script src="../libs/js/utils.js"></script>
+    <script src="../libs/js/ulanziApi.js"></script>
+    <script src="./settings.js"></script>
+    <script src="./inspector.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "life-tools-ulanzi-command-executor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "bundle": "webpack --config webpack.config.js",
+    "build": "./build.sh"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  },
+  "devDependencies": {
+    "webpack": "5.94.0",
+    "webpack-cli": "5.1.4"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "Localization": {
+    "page.title": "命令执行器",
+    "field.title.label": "按键标题",
+    "field.title.placeholder": "执行命令",
+    "field.command.label": "命令（含参数）",
+    "field.command.placeholder": "输入完整 Shell 命令",
+    "field.command.hint": "支持完整 Shell 语法、多行命令及包含 100～200 个参数的长命令。",
+    "field.cwd.label": "工作目录",
+    "field.cwd.placeholder": "留空使用 $HOME，或填写绝对路径、~/...",
+    "field.environment.label": "环境变量",
+    "field.environment.placeholder": "每行一个 NAME=VALUE",
+    "field.environment.hint": "按第一个等号拆分；同名变量以后出现的值为准。",
+    "preview.title": "执行预览",
+    "security.notice": "安全提示：命令将以当前 macOS 用户权限执行，保存前请确认命令来源可信。"
+  }
+}

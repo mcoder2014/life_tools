@@ -21,6 +21,7 @@
 - `cli/video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/cli/video_subtitle.md`。
 - `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/plugins/emby_video_subtitle.md`。
 - `plugins/alfred_remote_upload/`：Alfred 5 Workflow，将剪贴板中的图片或 Finder 单文件上传到 SSH 主机，详细说明见 `docs/plugins/alfred_remote_upload.md`。
+- `plugins/unlanzi_d200x/command_executor/`：Ulanzi D200X 命令执行器，源码、测试和构建入口均在该目录，文档索引见 `plugins/unlanzi_d200x/docs/README.md`。
 - `gui/interview_timer/`：macOS 面试悬浮计时 GUI 应用，说明见 `docs/gui/interview_timer.md`。
 - `docs/cli/`：CLI 工具文档。
 - `docs/plugins/`：插件程序文档。
@@ -78,6 +79,23 @@ plugins/alfred_remote_upload/tests/clipboard_integration.sh
 plugins/alfred_remote_upload/build.sh
 plutil -lint plugins/alfred_remote_upload/workflow/info.plist
 ```
+
+Ulanzi D200X Command Executor 也不走根目录 `build.sh`。修改该插件时在 `plugins/unlanzi_d200x/command_executor` 目录运行：
+
+```bash
+npm ci
+npm test
+bash -n build.sh
+./build.sh
+```
+
+## Ulanzi D200X 插件规则
+
+- `command_executor` 只支持 macOS 和 D200X 普通按键，不要把 Windows、Encoder 或交互式终端行为混入当前实现。
+- `com.ulanzi.commandexecutor.ulanziPlugin/libs/` 和 `plugin/vendor/ulanzi-api/` 是固定版本的官方 SDK 快照，不得直接修改；插件行为应在自有源码中实现。
+- 修改源码、配置、依赖或构建脚本时，同步核对 `plugins/unlanzi_d200x/docs/`，确保范围、命令和限制与实现一致。
+- 自动化验证不能代替实机验证。涉及 Studio 协议、配置持久化、按键反馈或并发执行时，必须在 Ulanzi Studio 和实体 D200X 上验证并记录环境与结果。
+- 官方 SDK 的诊断日志可能记录完整 WebSocket payload，其中可能包含命令和环境变量值；只允许在受控本机调试，文档、截图和提交内容不得泄露真实密钥或敏感配置。
 
 ## Go 代码规则
 
@@ -171,6 +189,7 @@ emby_plugins/video_subtitle/install.sh --help
 `.github/workflows/release.yml` 负责 tag 发布，不是普通 CI。修改发布流程时要同时关注 Go、Python `video_subtitle` 和 Emby 插件三类产物。
 `.github/workflows/swift-mac-app.yml` 负责 `gui/interview_timer` 的 Swift 单测、编译和未签名 `.app` 发布。
 `.github/workflows/alfred-workflow.yml` 负责 `plugins/alfred_remote_upload` 的 macOS 离线测试、plist 校验和打包验证。
+`.github/workflows/ulanzi-command-executor.yml` 负责 Ulanzi D200X 命令执行器的 macOS 测试、构建和 PR 安装包上传。
 
 - tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
 - Go 测试放在 `.github/workflows/go-test.yml`，PR 时必须真实运行 `go test ./...`，不能做成只提醒不阻塞的 reminder。

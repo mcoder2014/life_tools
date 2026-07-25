@@ -59,6 +59,7 @@
 | CLI | `video_subtitle` | `cli/video_subtitle/` | `video_subtitle` | 为单个视频生成简体中文字幕 | [docs/cli/video_subtitle.md](docs/cli/video_subtitle.md) |
 | Experimental CLI | `codex_inspector` | `cli/codex_inspector/` | `codex_inspector` | 本机只读查看 Codex 会话、token 用量、活跃度和记忆内容 | [docs/cli/codex_inspector.md](docs/cli/codex_inspector.md) |
 | Plugin | Alfred Remote Upload | `plugins/alfred_remote_upload/` | `Remote Upload.alfredworkflow` | 将剪贴板图片或 Finder 单文件上传到 SSH 主机，并复制远端路径 | [docs/plugins/alfred_remote_upload.md](docs/plugins/alfred_remote_upload.md) |
+| Plugin | Ulanzi D200X Command Executor | `plugins/unlanzi_d200x/command_executor/` | `.ulanziPlugin` | 每个按键独立配置并执行 macOS Shell 命令 | [插件文档](plugins/unlanzi_d200x/docs/README.md) |
 | Plugin | Emby 字幕插件 | `emby_plugins/video_subtitle/` | `LifeTools.Emby.VideoSubtitle.Emby.dll` | 在 Emby 后台调用 `video_subtitle` 生成字幕 | [docs/plugins/emby_video_subtitle.md](docs/plugins/emby_video_subtitle.md) |
 | GUI | InterviewTimer | `gui/interview_timer/` | `InterviewTimer.app` | macOS 面试悬浮计时器 | [docs/gui/interview_timer.md](docs/gui/interview_timer.md) |
 
@@ -148,6 +149,15 @@ Alfred Remote Upload 验证与打包：
 plugins/alfred_remote_upload/tests/run.sh
 plugins/alfred_remote_upload/tests/clipboard_integration.sh
 plugins/alfred_remote_upload/build.sh
+```
+
+Ulanzi D200X Command Executor 验证与打包：
+
+```bash
+cd plugins/unlanzi_d200x/command_executor
+npm ci
+npm test
+./build.sh
 ```
 
 具体工具的测试和排障入口见各自详细文档。
