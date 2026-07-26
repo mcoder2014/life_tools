@@ -169,11 +169,13 @@ Alfred Workflow macOS CI 会运行：
 
 ```bash
 plugins/alfred_remote_upload/tests/run.sh
-plugins/alfred_remote_upload/tests/clipboard_integration.sh
+ALFRED_SKIP_MULTI_FILE_PASTEBOARD_TEST=1 plugins/alfred_remote_upload/tests/clipboard_integration.sh
 plugins/alfred_remote_upload/build.sh
 plutil -lint plugins/alfred_remote_upload/workflow/info.plist
 unzip -t /tmp/life_tools_alfred_remote_upload_ci.alfredworkflow
 ```
+
+macOS 26 hosted runner 无法稳定保留测试 fixture 写入的多个 Finder URL，因此 CI 只跳过这个 live pasteboard 用例。`tests/run.sh` 仍使用两个普通文件验证多文件拒绝规则；开发者在真实桌面会话中直接运行 `clipboard_integration.sh` 时仍执行完整用例。
 
 Ulanzi D200X macOS CI 和 release job 会运行：
 

@@ -41,6 +41,8 @@ jobs:
         run: plugins/alfred_remote_upload/tests/run.sh
 
       - name: Run clipboard integration tests
+        env:
+          ALFRED_SKIP_MULTI_FILE_PASTEBOARD_TEST: '1'
         run: plugins/alfred_remote_upload/tests/clipboard_integration.sh
 
       - name: Build and inspect package
