@@ -109,5 +109,6 @@ gui/**/dist/
 gui/**/*.xcodeproj/
 gui/**/*.xcworkspace/
 plugins/**/dist/
+node_modules/
 *.app
 *.dSYM/

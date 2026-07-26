@@ -1,0 +1,56 @@
+name: Ulanzi Command Executor
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ulanzi-command-executor.yml'
+      - 'plugins/unlanzi_d200x/**'
+      - 'README.MD'
+      - 'AGENTS.md'
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/ulanzi-command-executor.yml'
+      - 'plugins/unlanzi_d200x/**'
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    name: Test and build Ulanzi command executor
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: plugins/unlanzi_d200x/command_executor/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Run tests
+        run: npm test
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Check build script syntax
+        run: bash -n build.sh
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Build plugin package
+        run: ./build.sh
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Upload dry-run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: life_tools_ulanzi_d200x_command_executor_ci
+          path: plugins/unlanzi_d200x/command_executor/output/life_tools_ulanzi_d200x_command_executor.zip
+          if-no-files-found: error

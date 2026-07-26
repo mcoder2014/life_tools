@@ -1,0 +1,17 @@
+{
+  "Localization": {
+    "page.title": "Command Executor",
+    "field.title.label": "Button title",
+    "field.title.placeholder": "Command",
+    "field.command.label": "Command (with arguments)",
+    "field.command.placeholder": "Enter the complete Shell command",
+    "field.command.hint": "Supports complete Shell syntax, multiple lines, and commands with 100–200 arguments.",
+    "field.cwd.label": "Working directory",
+    "field.cwd.placeholder": "Leave empty for $HOME, or use an absolute path or ~/...",
+    "field.environment.label": "Environment",
+    "field.environment.placeholder": "One NAME=VALUE entry per line",
+    "field.environment.hint": "Values are split at the first equals sign; later duplicate names take precedence.",
+    "preview.title": "Execution preview",
+    "security.notice": "Security notice: the command runs with your current macOS user permissions. Verify its source before saving it."
+  }
+}

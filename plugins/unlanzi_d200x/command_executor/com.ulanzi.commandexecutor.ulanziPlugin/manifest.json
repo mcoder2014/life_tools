@@ -1,0 +1,51 @@
+{
+  "Version": "0.1.0",
+  "Author": "mcoder2014",
+  "Name": "命令执行器",
+  "Description": "在当前 macOS 用户的登录 Shell 中执行每个按键独立配置的命令",
+  "Icon": "assets/icons/plugin.svg",
+  "Category": "命令执行器",
+  "CategoryIcon": "assets/icons/plugin.svg",
+  "CodePath": "dist/app.js",
+  "Type": "JavaScript",
+  "SupportedInMultiActions": false,
+  "UUID": "com.ulanzi.ulanzistudio.commandexecutor",
+  "Actions": [
+    {
+      "Name": "执行命令",
+      "Icon": "assets/icons/action.svg",
+      "PropertyInspectorPath": "property-inspector/inspector.html",
+      "state": 0,
+      "States": [
+        {
+          "Image": "assets/icons/action.svg"
+        },
+        {
+          "Image": "assets/icons/running.svg"
+        },
+        {
+          "Image": "assets/icons/success.svg"
+        }
+      ],
+      "Tooltip": "执行配置的 Shell 命令",
+      "UUID": "com.ulanzi.ulanzistudio.commandexecutor.runcommand",
+      "Controllers": [
+        "Keypad"
+      ],
+      "Devices": [
+        "D200X"
+      ],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false
+    }
+  ],
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.15"
+    }
+  ],
+  "Software": {
+    "MinVersion": "3.0.11"
+  }
+}
