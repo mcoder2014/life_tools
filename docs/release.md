@@ -1,6 +1,6 @@
 # 发布说明
 
-本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并上传到 GitHub Release。PR 会执行 Go 单测和发布包打包 dry-run，但不会创建 Release。Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。Swift macOS App 和 Alfred Workflow 使用独立的 macOS workflow 验证。
+本仓库通过 GitHub Actions 在推送 `v*` tag 时自动构建发布包，并上传到 GitHub Release。PR 会执行 Go 单测和发布包打包 dry-run，但不会创建 Release。Python 单元测试在单独 workflow 里运行，失败只作为提醒，不阻塞发布包流程。Swift macOS App、Alfred Workflow 和 Ulanzi D200X 命令执行器使用 macOS runner 验证。
 
 ## 触发方式
 
@@ -19,6 +19,7 @@ workflow 文件：
 .github/workflows/release.yml
 .github/workflows/swift-mac-app.yml
 .github/workflows/alfred-workflow.yml
+.github/workflows/ulanzi-command-executor.yml
 ```
 
 触发条件：
@@ -30,6 +31,8 @@ on:
       - '.github/workflows/release.yml'
       - '.github/workflows/go-test.yml'
       - '.github/workflows/python-test.yml'
+      - '.github/workflows/alfred-workflow.yml'
+      - 'tests/release_workflow_test.py'
       - 'docs/**'
       - 'README.MD'
       - 'AGENTS.md'
@@ -45,17 +48,21 @@ on:
       - 'v*'
 ```
 
-`pull_request` 在 release workflow 中只做 Python 编译检查、Emby 插件测试和打包 dry-run；只有 tag push 才进入独立的 `Publish GitHub release` job，执行 `gh release create` 或 `gh release upload`。Go 测试由 `.github/workflows/go-test.yml` 单独执行，失败会阻塞 PR。Python 单元测试由 `.github/workflows/python-test.yml` 单独执行，失败时只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
+`pull_request` 在 release workflow 中执行发布契约测试、Python 编译检查、Emby 插件测试，以及 Ubuntu 和 macOS 两组打包 dry-run；只有 tag push 才进入独立的 `Publish GitHub release` job，执行 `gh release create` 或 `gh release upload`。macOS job 使用官方 SDK 基础上的现有 `command_executor/build.sh` 生成 Ulanzi 安装包。publish job 下载两组 artifact 后重新生成 `checksums.txt`，确保 Ulanzi zip 也被纳入最终校验和。
+
+Go 测试由 `.github/workflows/go-test.yml` 单独执行，失败会阻塞 PR。Python 单元测试由 `.github/workflows/python-test.yml` 单独执行，失败时只写 GitHub warning 和 summary，本身仍返回成功，不阻塞发布包流程。
 
 `swift-mac-app.yml` 使用 `macos-latest` runner。PR 和 `master` 推送会验证 `gui/interview_timer` 的 Swift 单测、可执行产物构建和 `.app` 打包；`v*` tag 会额外上传未签名的 `InterviewTimer.app` zip。
 
 `alfred-workflow.yml` 使用 `macos-latest` runner。相关 PR 会检查 JXA、Shell、plist、离线测试和 `.alfredworkflow` 打包，并上传 dry-run artifact；不会创建 tag 或 Release。
 
+`ulanzi-command-executor.yml` 使用 `macos-latest` runner，为插件改动提供快速测试和打包反馈。tag 发布时由 `release.yml` 的 `Build Ulanzi release asset` job 重新构建版本化安装包，并由统一的 publish job 写入 Release。
+
 ## 发布操作流程
 
 1. 先把发布相关 PR 合并到 `master`。
 2. 在本地同步最新 `master`，创建新的 `v*` tag，并推送到远端。不要复用已经发布过的 tag；新版本用新 tag。
-3. 打开 GitHub Actions 的 `Release` workflow，确认 tag 触发的 `Build release assets` job 成功。
+3. 打开 GitHub Actions 的 `Release` workflow，确认 tag 触发的 `Build release assets` 和 `Build Ulanzi release asset` job 都成功。
 4. 打开 GitHub 仓库的 Releases 页面，进入对应 tag，例如 `v0.0.3`，下载需要的 zip。
 5. 如果需要 `InterviewTimer.app`，下载 `life_tools_interview_timer_macos_<tag>.zip`，解压后把 `InterviewTimer.app` 放到 `~/Applications` 或 `/Applications`。
 
@@ -82,6 +89,7 @@ life_tools_darwin_arm64_<tag>.zip
 life_tools_video_subtitle_source_<tag>.zip
 life_tools_emby_video_subtitle_plugin_<tag>.zip
 life_tools_alfred_remote_upload_<tag>.alfredworkflow
+life_tools_ulanzi_d200x_command_executor_<tag>.zip
 life_tools_interview_timer_macos_<tag>.zip
 life_tools_interview_timer_macos_<tag>.sha256
 checksums.txt
@@ -123,6 +131,8 @@ InterviewTimer.app
 
 Alfred 产物是可直接导入 Alfred 5 的 `life_tools_alfred_remote_upload_<tag>.alfredworkflow`。用户的 `hosts_json` 和 MRU 状态由 Alfred 及其 workflow data 目录管理，不进入发布包。
 
+Ulanzi 产物 `life_tools_ulanzi_d200x_command_executor_<tag>.zip` 的最外层是 `com.ulanzi.commandexecutor.ulanziPlugin`，可按 [Ulanzi D200X 命令执行器安装说明](../plugins/unlanzi_d200x/docs/command-executor-installation.md) 解压到 Studio 插件目录。历史 Release 不会因 workflow 更新自动重建；只有包含该发布逻辑的新 tag 会自动附带此资产。
+
 ## CI 验证
 
 发布前 release workflow 会运行：
@@ -131,6 +141,7 @@ Alfred 产物是可直接导入 Alfred 5 的 `life_tools_alfred_remote_upload_<t
 python3 -m py_compile cli/video_subtitle/video_subtitle.py cli/video_subtitle/video_subtitle_test.py cli/video_subtitle/lib/*.py
 dotnet test emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
 dotnet build emby_plugins/video_subtitle/LifeTools.Emby.VideoSubtitle.sln --configuration Release
+python3 -m unittest tests/release_workflow_test.py -v
 ```
 
 Swift macOS App workflow 会运行：
@@ -162,6 +173,16 @@ plugins/alfred_remote_upload/tests/clipboard_integration.sh
 plugins/alfred_remote_upload/build.sh
 plutil -lint plugins/alfred_remote_upload/workflow/info.plist
 unzip -t /tmp/life_tools_alfred_remote_upload_ci.alfredworkflow
+```
+
+Ulanzi D200X macOS CI 和 release job 会运行：
+
+```bash
+cd plugins/unlanzi_d200x/command_executor
+npm ci
+npm test
+bash -n build.sh
+./build.sh
 ```
 
 Go 测试失败会阻塞 PR；Python 测试失败时只写 GitHub warning 和 summary，不阻塞 release workflow，也不阻止 tag 发布资产。
