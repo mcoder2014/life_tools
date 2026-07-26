@@ -36,6 +36,8 @@ plugins/alfred_remote_upload/build.sh
 open "plugins/alfred_remote_upload/dist/Remote Upload.alfredworkflow"
 ```
 
+`clipboard_integration.sh` 默认在真实桌面会话中执行全部剪贴板用例。GitHub 托管的 macOS 26 runner 无法稳定保留 fixture 写入的多个 Finder URL，因此 CI 通过 `ALFRED_SKIP_MULTI_FILE_PASTEBOARD_TEST=1` 只跳过该 live pasteboard 用例；多文件拒绝规则仍由 `tests/run.sh` 使用两个普通文件做确定性验证。
+
 打开产物后由 Alfred 完成安装。升级 Workflow 时，Alfred Workflow Configuration 中的用户值独立保存，不会被仓库中的默认值覆盖。
 
 ## 配置

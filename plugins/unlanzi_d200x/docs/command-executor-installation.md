@@ -14,7 +14,33 @@
 
 本机实测环境是 macOS 14.7.8、Ulanzi Studio 3.1.9 和 D200X。插件已经安装并由实体按键执行成功。
 
-## 2. 从源码构建
+## 2. 获取安装包
+
+### 2.1 从 GitHub Release 下载
+
+优先从 [GitHub Releases](https://github.com/mcoder2014/life_tools/releases) 下载与版本 tag 同名的安装包：
+
+```text
+life_tools_ulanzi_d200x_command_executor_<tag>.zip
+```
+
+例如，发布版本是 `v0.0.8` 时，文件名是：
+
+```text
+life_tools_ulanzi_d200x_command_executor_v0.0.8.zip
+```
+
+也可以使用 GitHub CLI 下载：
+
+```bash
+tag="v0.0.8"
+gh release download "$tag" \
+  --pattern "life_tools_ulanzi_d200x_command_executor_${tag}.zip"
+```
+
+已经发布的历史版本不会因发布流程更新而自动补齐资产。如果对应 Release 没有该 zip，请使用包含此发布逻辑的新版本，或按下一节从源码构建。
+
+### 2.2 从源码构建
 
 在仓库根目录执行：
 
@@ -69,11 +95,14 @@ zip 的最外层已经是 `.ulanziPlugin` 目录，可直接解压到插件根�
 
 ```bash
 plugin_root="$HOME/Library/Application Support/Ulanzi/UlanziDeck/Plugins"
+archive="life_tools_ulanzi_d200x_command_executor_v0.0.8.zip"
 mkdir -p "$plugin_root"
 /usr/bin/ditto -x -k \
-  output/life_tools_ulanzi_d200x_command_executor.zip \
+  "$archive" \
   "$plugin_root"
 ```
+
+从源码构建时，把 `archive` 改为 `output/life_tools_ulanzi_d200x_command_executor.zip`。
 
 安装后应存在：
 

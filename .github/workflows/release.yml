@@ -7,6 +7,7 @@ on:
       - '.github/workflows/go-test.yml'
       - '.github/workflows/python-test.yml'
       - '.github/workflows/alfred-workflow.yml'
+      - 'tests/release_workflow_test.py'
       - 'docs/**'
       - 'README.MD'
       - 'AGENTS.md'
@@ -47,6 +48,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Validate release workflow contract
+        run: python3 -m unittest tests/release_workflow_test.py -v
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -158,10 +162,60 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  ulanzi-release:
+    name: Build Ulanzi release asset
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: plugins/unlanzi_d200x/command_executor/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Run tests
+        run: npm test
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Check build script syntax
+        run: bash -n build.sh
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Build plugin package
+        run: ./build.sh
+        working-directory: plugins/unlanzi_d200x/command_executor
+
+      - name: Prepare versioned release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE:-}" != "tag" ]; then
+            tag="v0.0.0-ci"
+          fi
+          source="plugins/unlanzi_d200x/command_executor/output/life_tools_ulanzi_d200x_command_executor.zip"
+          output="$RUNNER_TEMP/ulanzi-release"
+          mkdir -p "$output"
+          cp "$source" "$output/life_tools_ulanzi_d200x_command_executor_${tag}.zip"
+
+      - name: Upload Ulanzi release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ulanzi-release-asset
+          path: ${{ runner.temp }}/ulanzi-release/
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub release
     if: github.ref_type == 'tag'
-    needs: release
+    needs: [release, ulanzi-release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -172,6 +226,12 @@ jobs:
           name: release-assets
           path: dist
 
+      - name: Download Ulanzi release asset
+        uses: actions/download-artifact@v4
+        with:
+          name: ulanzi-release-asset
+          path: dist
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -180,6 +240,10 @@ jobs:
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
           title="life_tools ${tag}"
+          (
+            cd dist
+            sha256sum *.zip *.alfredworkflow > checksums.txt
+          )
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/*.zip dist/*.alfredworkflow dist/checksums.txt --clobber
           else

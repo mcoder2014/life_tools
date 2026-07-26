@@ -8,6 +8,8 @@
 |---|---|---|
 | [命令执行器设计](2026-07-25-command-executor-design.md) | 已有 | 定义 `command_executor` 的范围、配置模型、运行行为和验收标准 |
 | [命令执行器实现计划](2026-07-25-command-executor-implementation-plan.md) | 已有 | 按 TDD 顺序拆解源码、构建、文档和 Studio/D200X 实机验证 |
+| [命令执行器 Release 资产设计](2026-07-26-command-executor-release-design.md) | 已有 | 定义 macOS 构建、统一发布、资产命名和校验和边界 |
+| [命令执行器 Release 资产实现计划](2026-07-26-command-executor-release-plan.md) | 已有 | 按契约测试拆解 workflow、文档和发布验证 |
 | [Ulanzi 插件开发参考](ulanzi-plugin-development-reference.md) | 已有 | 提炼官方开发指南、本地安装指南和 SDK 的核心接入知识 |
 | [命令执行器安装说明](command-executor-installation.md) | 已实机验证 | 说明 macOS 构建、安装、升级、回滚、验收、日志和卸载 |
 | [命令执行器开发指南](command-executor-development-guide.md) | 已完成 | 记录目录职责、SDK 快照、运行模型、测试、构建、安装和调试 |

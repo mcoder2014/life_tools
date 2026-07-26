@@ -147,10 +147,12 @@ file_paths_json() {
 
 test_clipboard_file_validation() {
   local regular_file="$TEST_TMP/no-extension"
+  local second_regular_file="$TEST_TMP/second-file"
   local directory="$TEST_TMP/clipboard-directory"
   local fifo="$TEST_TMP/clipboard-fifo"
   local output
   printf 'file' > "$regular_file"
+  printf 'second' > "$second_regular_file"
   mkdir -p "$directory"
   /usr/bin/mkfifo "$fifo"
 
@@ -160,6 +162,9 @@ test_clipboard_file_validation() {
 
   if /usr/bin/osascript -l JavaScript "$CLIPBOARD_SCRIPT" validate-file-paths "$(file_paths_json "$directory")" >/dev/null 2>&1; then
     fail "directories should be rejected"
+  fi
+  if /usr/bin/osascript -l JavaScript "$CLIPBOARD_SCRIPT" validate-file-paths "$(file_paths_json "$regular_file" "$second_regular_file")" >/dev/null 2>&1; then
+    fail "multiple regular Finder files should be rejected"
   fi
   if /usr/bin/osascript -l JavaScript "$CLIPBOARD_SCRIPT" validate-file-paths "$(file_paths_json "$regular_file" "$directory")" >/dev/null 2>&1; then
     fail "multiple Finder items should be rejected"

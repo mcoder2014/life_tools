@@ -70,10 +70,14 @@ IFS=$'\x1f' read -r file_kind file_path file_extension file_temporary <<< "$file
 
 second_file="$TEST_TMP/second.txt"
 printf 'second' > "$second_file"
-files_json="$(/usr/bin/python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$finder_file" "$second_file")"
-/usr/bin/osascript -l JavaScript "$FIXTURE_SCRIPT" set-files "$files_json" >/dev/null
-if read_clipboard multiple >/dev/null 2>&1; then
-  fail "multiple Finder files should be rejected"
+if [[ "${ALFRED_SKIP_MULTI_FILE_PASTEBOARD_TEST:-0}" == "1" ]]; then
+  echo "SKIP: hosted runner does not preserve multiple Finder URLs on NSPasteboard"
+else
+  files_json="$(/usr/bin/python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$finder_file" "$second_file")"
+  /usr/bin/osascript -l JavaScript "$FIXTURE_SCRIPT" set-files "$files_json" >/dev/null
+  if read_clipboard multiple >/dev/null 2>&1; then
+    fail "multiple Finder files should be rejected"
+  fi
 fi
 
 files_json="$(/usr/bin/python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$TEST_TMP")"
