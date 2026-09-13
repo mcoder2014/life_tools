@@ -17,6 +17,7 @@
 - `cli/retry_exec/`：命令失败重试和失败通知工具。
 - `cli/codex_hook_notify/`：Codex lifecycle hook 飞书提醒工具。
 - `cli/file_share/`：临时 HTTP 文件分享工具。
+- `cli/cq_ddns_client/`：独立 Cloudflare DDNS 客户端，兼容旧 `home_client` YAML，详见 `docs/cli/cq_ddns_client.md`。
 - `cli/codex_inspector/`：本机 Codex 历史会话、活跃度和记忆内容只读查看工具，当前是实验 CLI，不进默认安装清单。
 - `cli/video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/cli/video_subtitle.md`。
 - `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/plugins/emby_video_subtitle.md`。
@@ -47,6 +48,7 @@
 - `./output/retry_exec` from `./cli/retry_exec/...`
 - `./output/codex_hook_notify` from `./cli/codex_hook_notify/...`
 - `./output/file_share` from `./cli/file_share/...`
+- `./output/cq_ddns_client` from `./cli/cq_ddns_client/...`
 
 测试优先使用：
 
@@ -106,6 +108,14 @@ bash -n build.sh
 - 测试断言沿用 `github.com/stretchr/testify/require`。
 - 不为小工具引入新框架、新配置系统或复杂依赖。
 - 不吞掉 `.Error` 或返回值错误；现在已有代码有粗糙处，新增代码不要继续扩大问题。
+
+## `cq_ddns_client` 规则
+
+- 默认配置 `/etc/life_tools/cq_ddns_client.json`；保留 `-conf` 别名和 `.yaml/.yml` 读取兼容。
+- 不得记录 Cloudflare Token、完整配置或 SDK HTTP 调试报文。
+- Go 测试只使用 loopback HTTP 服务；真实 DNS 验证先运行 `-dry-run`，不把真实 Token 写进仓库。
+- DNS 记录必须按域名和类型匹配，更新时保留 TTL、Proxied；创建时沿用 TTL 300、Proxied false。
+- 修改工具时同步检查安装脚本、构建脚本、release workflow、示例配置、systemd unit 和 CLI 文档。
 
 ## `renameV1` 规则
 
@@ -194,7 +204,7 @@ emby_plugins/video_subtitle/install.sh --help
 - tag 触发规则保持 `v*`，避免普通分支 push 意外创建 Release；`pull_request` 只能做 dry-run，不能创建 Release。
 - Go 测试放在 `.github/workflows/go-test.yml`，PR 时必须真实运行 `go test ./...`，不能做成只提醒不阻塞的 reminder。
 - Python 单元测试放在 `.github/workflows/python-test.yml`，失败只写 GitHub warning 和 summary，不能阻塞 release workflow。
-- Go 二进制包包含稳定 CLI 工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`file_share`；`codex_inspector` 作为实验工具参与 release 二进制产物，但仍不进入根目录 `install.sh` 默认安装清单。
+- Go 二进制包包含稳定 CLI 工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`file_share`、`cq_ddns_client`；`codex_inspector` 作为实验工具参与 release 二进制产物，但仍不进入根目录 `install.sh` 默认安装清单。
 - `video_subtitle` 只能按源码包发布，不能宣传成免依赖二进制；它仍依赖 Python、ffmpeg、TOS、ASR 和 LLM 配置。
 - Emby 插件包只放 `LifeTools.Emby.VideoSubtitle.Emby.dll` 和文档，不要把 `MediaBrowser.*`、`Emby.*` 或核心库 DLL 打进插件发布包。
 - `InterviewTimer` macOS App 只在 macOS runner 上构建，tag 发布包为未签名的 `InterviewTimer.app` zip，不要把它塞进根目录 `install.sh` 或 Go 二进制发布包。

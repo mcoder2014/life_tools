@@ -1,0 +1,12 @@
+{
+  "cloudflare": {
+    "api_token": "<your-cloudflare-api-token>",
+    "zone": "<your-cloudflare-zone-id>",
+    "debug": false,
+    "proxy": ""
+  },
+  "ddns_config": [
+    {"domain": "pi.example.org", "ip_version": "ipv4"},
+    {"domain": "pi6.example.org", "ip_version": "ipv6"}
+  ]
+}
