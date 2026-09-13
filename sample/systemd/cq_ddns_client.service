@@ -1,0 +1,19 @@
+[Unit]
+Description=CQ Cloudflare DDNS client
+Documentation=https://github.com/mcoder2014/life_tools/blob/master/docs/cli/cq_ddns_client.md
+After=network-online.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+DynamicUser=true
+LoadCredential=config:/etc/life_tools/cq_ddns_client.json
+ExecStart=/usr/local/bin/cq_ddns_client -config ${CREDENTIALS_DIRECTORY}/config
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

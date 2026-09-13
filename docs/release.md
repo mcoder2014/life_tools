@@ -43,6 +43,7 @@ on:
       - 'emby_plugins/video_subtitle/**'
       - 'plugins/alfred_remote_upload/**'
       - 'sample/life_tools/**'
+      - 'sample/systemd/**'
   push:
     tags:
       - 'v*'
@@ -103,9 +104,11 @@ bin/check_keywords
 bin/retry_exec
 bin/codex_hook_notify
 bin/file_share
+bin/cq_ddns_client
 bin/codex_inspector
 install.sh
 sample/life_tools/*.json
+sample/systemd/cq_ddns_client.service
 docs/**
 ```
 

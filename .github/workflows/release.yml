@@ -18,6 +18,7 @@ on:
       - 'emby_plugins/video_subtitle/**'
       - 'plugins/alfred_remote_upload/**'
       - 'sample/life_tools/**'
+      - 'sample/systemd/**'
   push:
     tags:
       - 'v*'
@@ -96,10 +97,12 @@ jobs:
             GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/retry_exec" ./cli/retry_exec/...
             GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/codex_hook_notify" ./cli/codex_hook_notify/...
             GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/file_share" ./cli/file_share/...
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/cq_ddns_client" ./cli/cq_ddns_client/...
             GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "$out/bin/codex_inspector" ./cli/codex_inspector/...
 
             cp README.MD install.sh "$out/"
             cp sample/life_tools/*.json "$out/sample/life_tools/"
+            cp -R sample/systemd "$out/sample/"
             cp -R docs/. "$out/docs/"
 
             (

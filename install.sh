@@ -8,8 +8,8 @@ CONFIG_DIR="${LIFE_TOOLS_CONFIG_DIR:-/etc/life_tools}"
 HOOKS_FILE="$HOME/.codex/hooks.json"
 OS_NAME="$(uname -s)"
 
-STABLE_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share)
-ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share)
+STABLE_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share cq_ddns_client)
+ALL_TOOLS=(renameV1 check_keywords retry_exec codex_hook_notify video_subtitle file_share cq_ddns_client)
 REQUESTED_TOOLS=()
 SELECTED_TOOLS=()
 INSTALL_ALL=0
@@ -35,10 +35,10 @@ Options:
   -h, --help                   Show this help.
 
 Stable tools installed by default:
-  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share
+  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share, cq_ddns_client
 
 All tool names:
-  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share
+  renameV1, check_keywords, retry_exec, codex_hook_notify, video_subtitle, file_share, cq_ddns_client
 
 Examples:
   ./install.sh
@@ -47,6 +47,7 @@ Examples:
   ./install.sh --tool video_subtitle --with-python-deps
   ./install.sh --tool codex_hook_notify --install-codex-hook
   ./install.sh --tool file_share
+  ./install.sh --tool cq_ddns_client
 EOF
 }
 
@@ -126,7 +127,7 @@ install_config_if_missing() {
     echo "config exists, skip overwrite: $dest"
     return
   fi
-  install_file "$sample" "$dest" 0644
+  install_file "$sample" "$dest" "${3:-0644}"
   echo "installed sample config: $dest"
 }
 
@@ -174,6 +175,9 @@ normalize_tool_name() {
       ;;
     file|share|file-share|file_share)
       echo "file_share"
+      ;;
+    cq_ddns_client|cq-ddns-client)
+      echo "cq_ddns_client"
       ;;
     *)
       return 1
@@ -312,7 +316,7 @@ needs_go() {
   local tool
   for tool in "${SELECTED_TOOLS[@]}"; do
     case "$tool" in
-      renameV1|check_keywords|retry_exec|codex_hook_notify|file_share)
+      renameV1|check_keywords|retry_exec|codex_hook_notify|file_share|cq_ddns_client)
         return 0
         ;;
     esac
@@ -558,6 +562,14 @@ EOF
   fi
 }
 
+install_cq_ddns_client() {
+  install_go_tool cq_ddns_client cq_ddns_client ./cli/cq_ddns_client/...
+  install_config_if_missing "$ROOT_DIR/sample/life_tools/cq_ddns_client.json" "$CONFIG_DIR/cq_ddns_client.json" 0600
+  echo "Edit $CONFIG_DIR/cq_ddns_client.json, then run:"
+  echo "  cq_ddns_client -config $CONFIG_DIR/cq_ddns_client.json -dry-run"
+  echo "systemd setup and migration: docs/cli/cq_ddns_client.md"
+}
+
 install_selected_tool() {
   case "$1" in
     renameV1)
@@ -577,6 +589,9 @@ install_selected_tool() {
       ;;
     file_share)
       install_file_share
+      ;;
+    cq_ddns_client)
+      install_cq_ddns_client
       ;;
     *)
       echo "unsupported tool: $1" >&2

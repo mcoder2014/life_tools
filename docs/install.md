@@ -25,6 +25,7 @@
 | `codex_hook_notify` | `codex_hook_notify` | Go | 是 | `/etc/life_tools/codex_hook_notify.json` |
 | `video_subtitle` | `video_subtitle` | Python | 是 | `/etc/life_tools/video_subtitle.json` |
 | `file_share` | `file_share` | Go | 是 | `/etc/life_tools/file_share.json` |
+| `cq_ddns_client` | `cq_ddns_client` | Go | 是 | `/etc/life_tools/cq_ddns_client.json` |
 | `codex_inspector` | `codex_inspector` | Go | 否 | 无配置文件，默认只读 `~/.codex` |
 | `InterviewTimer` | `InterviewTimer.app` | SwiftPM macOS App | 否 | `~/Library/Application Support/InterviewTimer/` |
 
@@ -43,6 +44,7 @@
 ./install.sh --tool renameV1 --tool check_keywords
 ./install.sh --tools retry_exec,codex_hook_notify
 ./install.sh --tool file_share
+./install.sh --tool cq_ddns_client
 ```
 
 安装到自定义前缀：
@@ -59,6 +61,17 @@
 
 这只改变安装脚本写入示例配置的位置。部分工具源码里的默认配置路径仍是 `/etc/life_tools`，运行时需要用命令参数指定自定义配置路径。
 
+
+## cq_ddns_client
+
+```bash
+./install.sh --tool cq_ddns_client
+cq_ddns_client -config /etc/life_tools/cq_ddns_client.json -dry-run
+```
+
+安装脚本将示例配置以 `0600` 权限安装，已有配置不覆盖。填入 Cloudflare Token、Zone ID 和域名后，`-dry-run` 只读预检一次，`-once` 刷新一次，省略两者则每 120 秒刷新。执行用户需要有配置读取权限。
+
+安装命令只安装二进制和示例配置。常驻服务使用 `sample/systemd/cq_ddns_client.service`；配置转换、停用旧 `home_client` 和回滚说明见 [CLI 文档](cli/cq_ddns_client.md)。
 
 ## file_share
 
@@ -267,6 +280,7 @@ command -v retry_exec
 command -v codex_hook_notify
 command -v video_subtitle
 command -v file_share
+command -v cq_ddns_client
 test -d "$HOME/Applications/InterviewTimer.app"
 ```
 
@@ -279,6 +293,7 @@ retry_exec --help
 codex_hook_notify -h
 video_subtitle --help
 file_share -h
+cq_ddns_client -h
 open "$HOME/Applications/InterviewTimer.app"
 ```
 

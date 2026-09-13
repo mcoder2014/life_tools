@@ -18,7 +18,7 @@
 
 ## 快速安装
 
-支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定命令行工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`、`file_share`。
+支持 Linux 和 macOS。仓库根目录执行下面命令，默认安装稳定命令行工具：`renameV1`、`check_keywords`、`retry_exec`、`codex_hook_notify`、`video_subtitle`、`file_share`、`cq_ddns_client`。
 
 ```bash
 ./install.sh
@@ -31,6 +31,7 @@
 ./install.sh --tool renameV1 --tool check_keywords
 ./install.sh --tools retry_exec,codex_hook_notify
 ./install.sh --tool file_share
+./install.sh --tool cq_ddns_client
 ```
 
 自定义安装目录和配置目录：
@@ -56,6 +57,7 @@
 | CLI | `retry_exec` | `cli/retry_exec/` | `retry_exec` | 给任意命令增加重试、退避和失败通知 | [docs/cli/retry_exec.md](docs/cli/retry_exec.md) |
 | CLI | `codex_hook_notify` | `cli/codex_hook_notify/` | `codex_hook_notify` | 接收 Codex hook 并推送飞书提醒 | [docs/cli/codex_hook_notify.md](docs/cli/codex_hook_notify.md) |
 | CLI | `file_share` | `cli/file_share/` | `file_share` | 临时启动只读 HTTP 文件分享服务 | [docs/cli/file_share.md](docs/cli/file_share.md) |
+| CLI | `cq_ddns_client` | `cli/cq_ddns_client/` | `cq_ddns_client` | 独立更新 Cloudflare IPv4/IPv6 DNS，兼容旧 home_client 配置 | [docs/cli/cq_ddns_client.md](docs/cli/cq_ddns_client.md) |
 | CLI | `video_subtitle` | `cli/video_subtitle/` | `video_subtitle` | 为单个视频生成简体中文字幕 | [docs/cli/video_subtitle.md](docs/cli/video_subtitle.md) |
 | Experimental CLI | `codex_inspector` | `cli/codex_inspector/` | `codex_inspector` | 本机只读查看 Codex 会话、token 用量、活跃度和记忆内容 | [docs/cli/codex_inspector.md](docs/cli/codex_inspector.md) |
 | Plugin | Alfred Remote Upload | `plugins/alfred_remote_upload/` | `Remote Upload.alfredworkflow` | 将剪贴板图片或 Finder 单文件上传到 SSH 主机，并复制远端路径 | [docs/plugins/alfred_remote_upload.md](docs/plugins/alfred_remote_upload.md) |
