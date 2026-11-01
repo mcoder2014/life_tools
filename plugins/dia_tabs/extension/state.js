@@ -3,17 +3,24 @@ const isWeb = tab => !tab.incognito && /^https?:\/\//i.test(tab.url || '');
 // Only this injected function reads page content. The observer sends a signal;
 // the worker checks active/complete again before each subsequent title read.
 export function readPageTitle() {
-  const key = '__lifeToolsDiaTitleObserverV1';
+  const key = '__lifeToolsDiaTitleObserverV2';
   if (!globalThis[key] && document.head) {
-    let timer;
+    globalThis.__lifeToolsDiaTitleObserverV1?.disconnect();
+    delete globalThis.__lifeToolsDiaTitleObserverV1;
+    let timer, dirty = false;
     const observer = new MutationObserver(mutations => {
       const titleChanged = mutations.some(mutation => mutation.target.nodeName === 'TITLE'
         || mutation.target.parentNode?.nodeName === 'TITLE'
         || [...mutation.addedNodes, ...mutation.removedNodes].some(node => node.nodeName === 'TITLE'));
-      if (!titleChanged || timer) return;
+      if (!titleChanged) return;
+      if (timer) { dirty = true; return; }
+      chrome.runtime.sendMessage({type: 'dia-tabs-title-changed'}).catch(() => {});
       timer = setTimeout(() => {
         timer = null;
-        chrome.runtime.sendMessage({type: 'dia-tabs-title-changed'}).catch(() => {});
+        if (dirty) {
+          dirty = false;
+          chrome.runtime.sendMessage({type: 'dia-tabs-title-changed'}).catch(() => {});
+        }
       }, 150);
     });
     observer.observe(document.head, {subtree: true, childList: true, characterData: true});
@@ -26,7 +33,7 @@ export function readPageTitle() {
 // every asynchronous result is checked against both navigation and sample IDs.
 export function createTabService(api) {
   const records = new Map(), versions = new Map(), samples = new Map(), tasks = new Set(), initialRemovals = new Set();
-  const pendingManual = new Set();
+  const pendingManual = new Set(), initialUpdates = [];
   let sessionId, initialized = false, writeTail = Promise.resolve(), syncPromise = null;
   const persist = () => {
     writeTail = writeTail.catch(() => {}).then(() => api.storage.session.set({
@@ -39,12 +46,21 @@ export function createTabService(api) {
     promise.catch(() => {}).finally(() => tasks.delete(promise));
     return promise;
   };
-  const invalidate = (id, url) => {
+  const invalidate = (id, url, preserveTitle = false) => {
     versions.set(id, (versions.get(id) || 0) + 1);
     samples.set(id, (samples.get(id) || 0) + 1);
-    if (url && /^https?:\/\//i.test(url)) records.set(id, {url, title: '', titleState: 'pending'});
-    else records.delete(id);
+    if (!preserveTitle) {
+      if (url && /^https?:\/\//i.test(url)) records.set(id, {url, title: '', titleState: 'pending'});
+      else records.delete(id);
+    }
     if (sessionId) persist();
+  };
+  const updateRecord = (id, url, loading, suspended) => {
+    const record = records.get(id), urlChanged = record?.url !== url;
+    // Suspension rejects in-flight reads even after recovery, while retaining
+    // the last DOM title for the same URL. A real reload still clears it.
+    if (urlChanged || loading || suspended)
+      invalidate(id, url, !urlChanged && suspended && record?.titleState === 'captured');
   };
   const capture = async (tab, {allowBackground = false} = {}) => {
     if (!isWeb(tab)) return 'unsupported';
@@ -105,17 +121,29 @@ export function createTabService(api) {
     for (const tab of tabs) {
       if (records.get(tab.id)?.url !== tab.url) records.set(tab.id, {url: tab.url, title: '', titleState: 'pending'});
     }
+    // Compare early events with restored records, in order; the query snapshot
+    // may predate these events. Removed/replaced tabs must not be resurrected.
+    for (const update of initialUpdates) if (live.has(update[0])) updateRecord(...update);
+    initialUpdates.length = 0;
     initialized = true;
     initialRemovals.clear();
     persist();
-    await Promise.all(tabs.map(tab => capture(tab)));
+    await Promise.all(tabs.filter(tab => !versions.has(tab.id)).map(tab => capture(tab)));
   })();
   const refreshTab = id => track(ready.then(async () => {
     try { const tab = await api.tabs.get(id); await capture(tab); } catch { /* Tab closed. */ }
   }));
   api.tabs.onUpdated.addListener((id, change, tab) => {
-    if (change.status === 'loading' || Object.hasOwn(change, 'url')) invalidate(id, tab.incognito ? undefined : change.url || tab.url);
-    if (change.status === 'complete' || Object.hasOwn(change, 'title') || Object.hasOwn(change, 'url')) refreshTab(id);
+    if (change.status === 'loading' || Object.hasOwn(change, 'url')
+      || change.frozen === true || change.discarded === true || change.status === 'unloaded') {
+      const update = [id, tab.incognito ? undefined : change.url || tab.url, change.status === 'loading',
+        !!(tab.frozen || tab.discarded || tab.status === 'unloaded'
+          || change.frozen === true || change.discarded === true || change.status === 'unloaded')];
+      if (initialized) updateRecord(...update);
+      else initialUpdates.push(update);
+    }
+    if (change.status === 'complete' || Object.hasOwn(change, 'title') || Object.hasOwn(change, 'url')
+      || change.frozen === false || change.discarded === false) refreshTab(id);
   });
   api.tabs.onActivated.addListener(({tabId}) => { refreshTab(tabId); });
   api.tabs.onCreated.addListener(tab => { refreshTab(tab.id); });

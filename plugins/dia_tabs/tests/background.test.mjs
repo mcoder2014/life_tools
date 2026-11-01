@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
 const source = await readFile(new URL('../extension/state.js', import.meta.url), 'utf8').catch(() => '');
-const {createTabService} = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const {createTabService,readPageTitle} = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 function event() {
   const listeners = [];
@@ -89,22 +90,49 @@ test('script rejection is unavailable rather than tabs.title fallback', async ()
   assert.equal(row.title,'');assert.equal(row.titleState,'unavailable');
 });
 
-test('title observer ignores style/meta churn and coalesces title mutations without starvation', async () => {
-  const {runInNewContext} = await import('node:vm');
-  const {readPageTitle} = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
-  const callbacks=[],timers=[],messages=[];
+function titleObserver(extra={}) {
+  const callbacks=[],timers=[],delays=[],messages=[];
   const context={document:{head:{},title:'DOM Title',readyState:'complete'},location:{href:'https://example.com/'},
     MutationObserver:class {constructor(callback) {callbacks.push(callback);}observe() {}},
-    setTimeout(fn) {timers.push(fn);return timers.length;},clearTimeout() {},
+    setTimeout(fn,delay) {timers.push(fn);delays.push(delay);return timers.length;},clearTimeout() {},
     chrome:{runtime:{sendMessage(message) {messages.push(message);return Promise.resolve();}}},
+    ...extra,
   };
   runInNewContext(`(${readPageTitle.toString()})()`,context);
-  callbacks[0]([{type:'childList',target:{nodeName:'STYLE'},addedNodes:[],removedNodes:[]}]);
-  assert.equal(timers.length,0);
-  const mutation={type:'characterData',target:{parentNode:{nodeName:'TITLE'}},addedNodes:[],removedNodes:[]};
-  callbacks[0]([mutation]);callbacks[0]([mutation]);
-  assert.equal(timers.length,1);
-  timers[0]();assert.equal(messages.length,1);
+  const notify=()=>callbacks[0]([{type:'characterData',target:{parentNode:{nodeName:'TITLE'}},addedNodes:[],removedNodes:[]}]);
+  return {callbacks,timers,delays,messages,notify,context};
+}
+
+test('title observer immediately signals the first mutation without a title payload', () => {
+  const f=titleObserver();f.notify();
+  assert.deepEqual(structuredClone(f.messages),[{type:'dia-tabs-title-changed'}]);
+  assert.equal(f.timers.length,1);assert.equal(f.delays[0],150);
+  f.timers[0]();assert.equal(f.messages.length,1);
+});
+
+test('title observer coalesces later mutations and does not starve continuous changes', () => {
+  const f=titleObserver();f.notify();f.notify();f.notify();
+  assert.equal(f.messages.length,1);assert.equal(f.timers.length,1);
+  f.timers[0]();assert.equal(f.messages.length,2);
+  f.notify();f.notify();assert.equal(f.messages.length,3);assert.equal(f.timers.length,2);
+  f.timers[1]();assert.equal(f.messages.length,4);
+});
+
+test('title observer ignores style and meta changes without notifications or timers', () => {
+  const f=titleObserver();
+  for(const nodeName of ['STYLE','META','LINK']) {
+    f.callbacks[0]([{type:'childList',target:{nodeName},addedNodes:[],removedNodes:[]}]);
+  }
+  assert.equal(f.timers.length,0);assert.deepEqual(f.messages,[]);
+});
+
+test('title observer replaces V1 on existing pages and installs the new observer only once', () => {
+  let disconnected=0;
+  const f=titleObserver({__lifeToolsDiaTitleObserverV1:{disconnect() {disconnected++;}}});
+  assert.equal(disconnected,1);assert.equal(f.callbacks.length,1);
+  runInNewContext(`(${readPageTitle.toString()})()`,f.context);
+  assert.equal(disconnected,1);assert.equal(f.callbacks.length,1);
+  f.notify();assert.equal(f.messages.length,1);
 });
 
 test('private-window events never persist URL or title even if API exposes them', async () => {
@@ -232,4 +260,143 @@ test('list exposes live diagnostic fields and sync prioritizes discarded over un
   assert.equal(rows[1].status,'unknown');assert.equal(rows[1].discarded,null);assert.equal(rows[1].frozen,null);
   assert.deepEqual((await s.syncOpenTabs()).skipReasons,{discarded:1,unknown_status:1,loading:1,frozen:1,unloaded:1});
   assert.equal(f.calls.length,0);
+});
+
+test('active pages are sampled after unfreezing or restoration, but inactive pages are not', async t => {
+  for(const field of ['frozen','discarded']) for(const active of [true,false]) await t.test(`${field}, active=${active}`,async()=>{
+    const f=fake([tab(1,{active:false,[field]:true})]);const s=service(f.api);await s.ready;
+    f.current.set(1,tab(1,{active,[field]:true}));f.api.tabs.onActivated.emit({tabId:1});await s.idle();
+    assert.equal(f.calls.length,0);
+    f.current.set(1,tab(1,{active,[field]:false}));f.api.tabs.onUpdated.emit(1,{[field]:false},f.current.get(1));await s.idle();
+    f.current.set(1,{...f.current.get(1),active:false});
+    const row=(await s.list())[0];
+    assert.equal(row.titleState,active?'captured':'pending');
+    assert.equal(row.title,active?'DOM 1':'');
+    assert.equal(f.calls.filter(call=>call[0]==='script').length,active?1:0);
+  });
+});
+
+test('repeated URLs preserve background titles while real URL changes clear them', async () => {
+  const f=fake([tab(1)]);const s=service(f.api);await s.ready;
+  f.current.set(1,tab(1,{active:false}));f.api.tabs.onUpdated.emit(1,{url:f.current.get(1).url,title:'Browser label'},f.current.get(1));await s.idle();
+  assert.equal((await s.list())[0].title,'DOM 1');
+  assert.equal(f.calls.filter(call=>call[0]==='script').length,1);
+  f.current.set(1,tab(1));f.api.tabs.onUpdated.emit(1,{url:f.current.get(1).url},f.current.get(1));await s.idle();
+  assert.equal(f.calls.filter(call=>call[0]==='script').length,2);
+  f.current.set(1,tab(1,{active:false,url:'https://example.org/next'}));
+  f.api.tabs.onUpdated.emit(1,{url:f.current.get(1).url},f.current.get(1));await s.idle();
+  const row=(await s.list())[0];assert.equal(row.title,'');assert.equal(row.titleState,'pending');
+});
+
+test('repeated URLs keep an in-flight manual sample valid, while a real same-URL reload rejects it', async t => {
+  for(const reload of [false,true]) await t.test(`reload=${reload}`,async()=>{
+    const f=fake([tab(1)]);const s=service(f.api);await s.ready;
+    f.current.set(1,tab(1,{active:false}));let release;
+    f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
+    const pending=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));
+    f.current.set(1,tab(1,{active:false,status:reload?'loading':'complete'}));
+    f.api.tabs.onUpdated.emit(1,reload?{status:'loading'}:{url:f.current.get(1).url},f.current.get(1));
+    f.current.set(1,tab(1,{active:false}));
+    if(reload) f.api.tabs.onUpdated.emit(1,{status:'complete'},f.current.get(1));
+    release([{frameId:0,result:{title:'Current DOM',url:'https://example.com/',readyState:'complete'}}]);
+    assert.deepEqual(await pending,reload?{captured:0,unavailable:0,skipped:1,skipReasons:{stale:1}}:{captured:1,unavailable:0,skipped:0,skipReasons:{}});
+    await s.idle();assert.equal((await s.list())[0].title,reload?'':'Current DOM');
+  });
+});
+
+test('lifecycle loading preserves captured DOM titles unless the URL changes', async t => {
+  for(const lifecycle of [{frozen:true},{discarded:true},{status:'unloaded'}]) await t.test(JSON.stringify(lifecycle),async()=>{
+    const f=fake([tab(1)]);const s=service(f.api);await s.ready;
+    const state={active:false,status:'loading',title:'Browser placeholder',...lifecycle};
+    f.current.set(1,tab(1,state));
+    f.api.tabs.onUpdated.emit(1,{status:'loading',...lifecycle,title:'Browser placeholder'},f.current.get(1));await s.idle();
+    const retained=(await s.list())[0];assert.equal(retained.title,'DOM 1');assert.equal(retained.titleState,'captured');
+    f.current.set(1,tab(1,{...state,url:'https://example.org/next'}));
+    f.api.tabs.onUpdated.emit(1,{url:f.current.get(1).url,status:'loading'},f.current.get(1));await s.idle();
+    const changed=(await s.list())[0];assert.equal(changed.title,'');assert.equal(changed.titleState,'pending');
+  });
+});
+
+test('a sample crossing a complete lifecycle suspension cannot replace the retained title', async t => {
+  for(const field of ['frozen','discarded']) for(const loading of [false,true]) await t.test(`${field}, loading=${loading}`,async()=>{
+    const f=fake([tab(1)]);const s=service(f.api);await s.ready;
+    f.current.set(1,tab(1,{active:false}));let release;
+    f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
+    const pending=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));
+    f.current.set(1,tab(1,{active:false,[field]:true,status:loading?'loading':'complete'}));
+    f.api.tabs.onUpdated.emit(1,{[field]:true,...loading?{status:'loading'}:{}},f.current.get(1));
+    f.current.set(1,tab(1,{active:false,[field]:false}));
+    f.api.tabs.onUpdated.emit(1,{[field]:false},f.current.get(1));
+    release([{frameId:0,result:{title:'Before suspension',url:'https://example.com/',readyState:'complete'}}]);
+    assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1,skipReasons:{stale:1}});await s.idle();
+    assert.equal((await s.list())[0].title,'DOM 1');
+  });
+});
+
+test('an unloaded page rejects an earlier sample after returning to complete', async () => {
+  const f=fake([tab(1)]);const s=service(f.api);await s.ready;
+  f.current.set(1,tab(1,{active:false}));let release;
+  f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
+  const pending=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));
+  f.current.set(1,tab(1,{active:false,status:'unloaded'}));f.api.tabs.onUpdated.emit(1,{status:'unloaded'},f.current.get(1));
+  f.current.set(1,tab(1,{active:false}));f.api.tabs.onUpdated.emit(1,{status:'complete'},f.current.get(1));
+  release([{frameId:0,result:{title:'Before unload',url:'https://example.com/',readyState:'complete'}}]);
+  assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1,skipReasons:{stale:1}});
+  await s.idle();assert.equal((await s.list())[0].title,'DOM 1');
+});
+
+test('an automatic sample finishing after the tab becomes inactive retains the previous title', async () => {
+  const f=fake([tab(1)]);const s=service(f.api);await s.ready;let release;
+  f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
+  const pending=s.refreshTab(1);await new Promise(resolve=>setImmediate(resolve));
+  f.current.set(1,tab(1,{active:false}));
+  release([{frameId:0,result:{title:'After leaving',url:'https://example.com/',readyState:'complete'}}]);await pending;
+  assert.equal((await s.list())[0].title,'DOM 1');
+});
+
+test('initial updates distinguish repeated URLs, navigation and real same-URL reloads', async t => {
+  for(const change of ['repeat','navigation','roundtrip','reload','lifecycle']) await t.test(change,async()=>{
+    const saved={diaTabsSession:'saved-session',diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+    const f=fake([tab(1,{active:false})]);let release;
+    f.api.storage.session.get=()=>new Promise(resolve=>{release=resolve;});
+    const s=service(f.api);
+    if(change==='navigation' || change==='roundtrip') {
+      f.current.set(1,tab(1,{active:false,url:'https://example.org/next'}));
+      f.api.tabs.onUpdated.emit(1,{url:f.current.get(1).url},f.current.get(1));
+    }
+    if(change==='roundtrip') f.current.set(1,tab(1,{active:false}));
+    if(change==='reload') f.current.set(1,tab(1,{active:false,status:'loading'}));
+    if(change==='lifecycle') f.current.set(1,tab(1,{active:false,status:'loading',discarded:true}));
+    f.api.tabs.onUpdated.emit(1,change==='reload'?{status:'loading'}:change==='lifecycle'?{discarded:true,status:'loading'}:{url:f.current.get(1).url},f.current.get(1));
+    release(saved);await s.ready;await s.idle();
+    const row=(await s.list())[0],preserve=change==='repeat'||change==='lifecycle';
+    assert.equal(row.title,preserve?'Saved DOM':'');assert.equal(row.titleState,preserve?'captured':'pending');
+    assert.equal(f.calls.length,0);
+  });
+});
+
+test('initial query updates cannot restore closed or replaced tab records', async t => {
+  for(const change of ['navigation','remove','replace']) await t.test(change,async()=>{
+    const saved={diaTabsSession:'saved-session',diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+    const f=fake([tab(1,{active:false})],saved);let release;
+    f.api.tabs.query=()=>new Promise(resolve=>{release=resolve;});
+    const s=service(f.api);await new Promise(resolve=>setImmediate(resolve));
+    f.current.set(1,tab(1,{active:false,url:'https://example.org/next'}));
+    f.api.tabs.onUpdated.emit(1,{url:f.current.get(1).url},f.current.get(1));
+    if(change==='remove') {f.current.delete(1);f.api.tabs.onRemoved.emit(1);}
+    if(change==='replace') {f.current.delete(1);f.current.set(2,tab(2,{active:false}));f.api.tabs.onReplaced.emit(2,1);}
+    release([tab(1,{active:false})]);await s.ready;await s.idle();
+    if(change==='navigation') assert.deepEqual(f.storage.diaTabsRecords[1],{url:'https://example.org/next',title:'',titleState:'pending'});
+    else assert.equal(f.storage.diaTabsRecords[1],undefined);
+  });
+});
+
+test('a stale initial query cannot inject into a page suspended while the query was pending', async () => {
+  const saved={diaTabsSession:'saved-session',diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+  const f=fake([tab(1)],saved);let release;
+  f.api.tabs.query=()=>new Promise(resolve=>{release=resolve;});
+  const s=service(f.api);await new Promise(resolve=>setImmediate(resolve));
+  f.current.set(1,tab(1,{frozen:true}));f.api.tabs.onUpdated.emit(1,{frozen:true},f.current.get(1));
+  release([tab(1)]);await s.ready;await s.idle();
+  assert.equal(f.calls.length,0);assert.equal(f.storage.diaTabsRecords[1].title,'Saved DOM');
 });

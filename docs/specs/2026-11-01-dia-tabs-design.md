@@ -41,12 +41,14 @@
 |---|---|
 | 打开的 HTTP/HTTPS 标签尚未被采集 | 显示“待访问”，保留 URL，可复制 URL、可激活 |
 | 自动采集：active 且 tab.status=complete，未 discarded/frozen | 在顶层 frame 读取 `document.title`、`location.href`、`document.readyState` |
-| 初次启动、`onActivated`、`onUpdated` 的 complete/title 变化 | 满足上述条件时重新采集，不使用事件中的 title 值 |
+| 初次启动、`onActivated`、`onUpdated` 的 complete/title 变化，或 frozen/discarded 变为 false | 满足上述条件时重新采集，不使用事件中的 title 值；后台恢复不自动采集 |
 | 非 active 标签 | 不自动采集；保留其已采集且仍对应当前 URL 的标题 |
 | 点击“同步已打开标签” | 手动读取当前 profile 全部 HTTP/HTTPS 已加载网页标题，包含后台标签；不切换、加载或重载页面 |
 | 手动同步遇到 loading/discarded/frozen | 跳过，保持页面状态；单次读取超过 5 秒也跳过 |
-| 加载开始或 URL 变化 | 立即作废旧标题，增加该 tab 的采集版本；禁止旧标题与新 URL 配对 |
-| SPA 改标题 | active 时由 `onUpdated` 的 title 变化触发重新读取 DOM |
+| URL 真正改变或正常重载（含同 URL 重载） | 立即作废旧标题，增加该 tab 的采集版本；禁止旧标题与新 URL 配对 |
+| 重复上报相同 URL | 只触发满足条件的重新采集，不作废已有标题 |
+| 同 URL 标签 frozen/discarded/unloaded，可能同时上报 loading | 保留已采集标题，仍增加采集版本；恢复后也拒绝此前的在途结果 |
+| DOM title 变化 | active 时由 `onUpdated` 的 title 事件或顶层 MutationObserver 通知触发重新读取 DOM |
 | SPA 改 URL | 作废旧标题，active 且 complete 时重新读取；后续 title 事件继续更新 |
 | 页面为空标题 | 显示“无标题”；Markdown 使用 URL 作为链接文本，不回退到 tabs.title |
 | 受限页面或执行脚本失败 | 保留 URL，显示“无法读取页面标题”；不得伪装采集成功 |
@@ -54,7 +56,7 @@
 
 控制页和 Alfred 默认只列 HTTP/HTTPS 网页。`chrome://`、`dia://`、扩展自身页面、`file://` 不进入列表；不申请 file 权限。隐私窗口明确不支持：manifest 使用 `incognito: "not_allowed"`，并在查询结果再次过滤 incognito。
 
-标题采集不承诺存在一个永远稳定的标题。页面可以持续修改 title；记录的是最后一次满足条件时读到的 DOM title。可以用约 150 毫秒合并同一标签的密集更新，但不能做无期限“等待稳定”。Dia 重命名后是否仍投递 DOM title 的变化事件需要实测；若被 Dia 屏蔽，必须补顶层 DOM title 的 MutationObserver 通知后重新采样，不能悄悄丢失更新。
+标题采集不承诺存在一个永远稳定的标题。页面可以持续修改 title；记录的是最后一次满足条件时读到的 DOM title，不能严格归因到某次用户操作。顶层 MutationObserver 只关注 title 的增删和内容变化，首次变化立即发送无标题 payload 的通知，150 毫秒窗口内的后续变化在窗口结束时合并通知；持续变化不会无限等待稳定，style/meta 变化不触发通知。新版本采样会替换已有页面的 V1 observer，避免必须重载网页。Dia 手动重命名后动态标题的实机行为仍待验证。
 
 ## 状态与并发边界
 
@@ -62,11 +64,11 @@
 
 记录至少包含 `tabId, url, title, titleState`。列表输出额外包含实时 `windowId, index, active`。导航版本计数用于拒绝延迟返回，不必对外暴露。
 
-采集前记下 tabId、URL 和版本；异步脚本返回后重新 `tabs.get`，仅在标签仍存在、仍 active、仍 complete、未 discarded/frozen、版本和 URL 均相同、DOM readyState 为 complete 时接受。显式手动同步仅放宽 active 门槛，并在注入前再次读取实时标签状态；导航、关闭和更晚采样校验不变。导航事件必须先同步使版本失效，再执行异步工作。关闭后的延迟响应不可重新插回缓存。缓存写入应串行或按 tab key 写，避免两个异步采集互相覆盖整张表。
+采集前记下 tabId、URL 和版本；异步脚本返回后重新 `tabs.get`，仅在标签仍存在、仍 active、仍 complete、未 discarded/frozen、版本和 URL 均相同、DOM readyState 为 complete 时接受。极快切走可能使自动采样来不及完成，下次激活再补采，不保证每次短暂访问都采到变化后的标题。显式手动同步仅放宽 active 门槛，并在注入前再次读取实时标签状态；导航、关闭和更晚采样校验不变。导航与生命周期暂停事件必须先同步使版本失效，再执行异步工作。关闭后的延迟响应不可重新插回缓存。缓存写入应串行或按 tab key 写，避免两个异步采集互相覆盖整张表。
 
 手动同步最多并发 4 个实际未结束的脚本读取，重复请求复用同一批次。读取超过 5 秒结束等待并计为跳过；浏览器尚未结束的脚本继续占用额度，直到实际成功或失败，额度不足时其余页面计为跳过，防止超时累积无限注入。成功、无法读取、跳过数量来自本轮实际采集结果，不从历史缓存推算。同步响应另含 `skipReasons` 原因计数：`discarded`、`frozen`、`loading`、`unloaded`、`unknown_status`、`stale`、`closed`、`timeout`、`capacity`；已释放、冻结优先于 status 判定。仅返回本轮汇总，不持久化诊断。
 
-service worker 的事件监听器在模块顶层同步注册。初始化载入 session 后，重新查询当前标签并清理不存在或 URL 不符的记录。不能只依赖 `onStartup`：休眠后重启 worker 同样要初始化。
+service worker 的事件监听器在模块顶层同步注册。初始化载入 session 后，重新查询当前标签并清理不存在或 URL 不符的记录；初始化期间暂存的 URL、加载和生命周期事件随后按顺序应用，不包含 title。已关闭或被替换的标签不恢复；被早期事件作废的查询快照不用于初次采样，后续事件按实时状态补采。不能只依赖 `onStartup`：休眠后重启 worker 同样要初始化。
 
 `connectNative` 保持连接以支持 Alfred 主动请求。断线后用有限重试与 `alarms` 恢复，重试间隔不低于数秒，长期失败最多每分钟一次；不得循环立即重连。控制页应显示本机桥接是否连接。即使 native host 不可用，扩展自身列表和复制仍正常工作。
 
