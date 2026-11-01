@@ -9,17 +9,22 @@ function visibleTabs() {
   return tabs.filter(tab => `${tab.title}\n${tab.url}`.toLocaleLowerCase().includes(query));
 }
 
+function notify(message, tone = 'info') {
+  byId('notice').textContent = message;
+  byId('notice').setAttribute('data-tone', tone);
+}
+
 async function copy(text) {
   try {
     await navigator.clipboard.writeText(text);
-    byId('notice').textContent = '已复制到剪贴板';
-  } catch { byId('notice').textContent = '复制失败，请检查剪贴板权限后重试。'; }
+    notify('已复制到剪贴板', 'success');
+  } catch { notify('复制失败，请检查剪贴板权限后重试。', 'error'); }
 }
 
 async function activate(tabId) {
   const response = await chrome.runtime.sendMessage({v:1, id:crypto.randomUUID(), op:'activate', sessionId, tabId}).catch(() => null);
   if (!response?.ok) {
-    byId('notice').textContent = response?.message || '无法切换标签，请刷新列表。';
+    notify(response?.message || '无法切换标签，请刷新列表。', 'error');
     if (response?.error === 'TAB_CLOSED' || response?.error === 'STALE_SESSION') await refresh();
   }
 }
@@ -50,6 +55,8 @@ function render() {
     const title = document.createElement('button');
     title.className = 'title-button'; title.type = 'button';
     title.textContent = tab.titleState === 'captured' ? (tab.title || '无标题') : tab.titleState === 'pending' ? '待访问' : '无法读取页面标题';
+    title.title = title.textContent;
+    title.classList.toggle('is-placeholder', tab.titleState !== 'captured' || !tab.title);
     const navigate = event => {
       event.preventDefault();
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
@@ -58,15 +65,29 @@ function render() {
     title.addEventListener('click', navigate); titleCell.append(title);
     const urlCell = document.createElement('td');
     const link = document.createElement('a');
-    link.className = 'url'; link.href = tab.url; link.textContent = tab.url;
+    link.className = 'url'; link.href = tab.url; link.textContent = tab.url; link.title = tab.url;
     link.addEventListener('click', navigate);
     link.addEventListener('auxclick', event => { event.preventDefault(); event.stopPropagation(); });
     urlCell.append(link);
-    const stateCell = document.createElement('td'); stateCell.className = 'state';
-    const pageState = tab.discarded ? '已释放' : tab.frozen ? '已冻结' : tab.status === 'loading' ? '加载中' : tab.status === 'unloaded' ? '尚未加载' : tab.status === 'complete' ? '已加载' : '状态未知';
-    stateCell.textContent = `${tab.active ? '当前标签 · ' : ''}${tab.titleState === 'captured' ? '已记录' : tab.titleState === 'pending' ? '待访问' : '无法读取'} · ${pageState} · 窗口 ${tab.windowId}`;
+    const stateCell = document.createElement('td'); stateCell.className = 'state-cell';
+    const primaryState = document.createElement('div'); primaryState.className = 'state-line';
+    const recordState = document.createElement('span');
+    const recordKind = tab.titleState === 'captured' ? 'captured' : tab.titleState === 'pending' ? 'pending' : 'unavailable';
+    recordState.className = `state-badge ${recordKind}`;
+    recordState.textContent = recordKind === 'captured' ? '已记录' : recordKind === 'pending' ? '待访问' : '无法读取';
+    primaryState.append(recordState);
+    if (tab.active) {
+      const current = document.createElement('span'); current.className = 'state-badge current'; current.textContent = '当前标签';
+      primaryState.append(current);
+    }
+    const secondaryState = document.createElement('div'); secondaryState.className = 'state-line state-secondary';
+    const pageState = tab.discarded ? {label:'已释放', kind:'discarded'} : tab.frozen ? {label:'已冻结', kind:'frozen'} : tab.status === 'loading' ? {label:'加载中', kind:'loading'} : tab.status === 'unloaded' ? {label:'尚未加载', kind:'unloaded'} : tab.status === 'complete' ? {label:'已加载', kind:'complete'} : {label:'状态未知', kind:'unknown'};
+    const page = document.createElement('span'); page.className = `state-badge ${pageState.kind}`; page.textContent = pageState.label;
+    const windowLabel = document.createElement('span'); windowLabel.className = 'window-label'; windowLabel.textContent = `窗口 ${tab.windowId}`;
+    secondaryState.append(page, windowLabel); stateCell.append(primaryState, secondaryState);
     const copyCell = document.createElement('td');
-    const copyButton = document.createElement('button'); copyButton.type = 'button'; copyButton.className = 'copy-button'; copyButton.textContent = '复制 URL';
+    const copyButton = document.createElement('button'); copyButton.type = 'button'; copyButton.className = 'copy-button'; copyButton.textContent = '复制';
+    copyButton.setAttribute('aria-label', `复制 ${tab.url}`);
     copyButton.addEventListener('click', event => { event.stopPropagation(); copy(tab.url); }); copyCell.append(copyButton);
     row.append(checkCell,titleCell,urlCell,stateCell,copyCell); body.append(row);
   }
@@ -80,7 +101,12 @@ function render() {
 
 async function bridge(reconnect = false) {
   const result = await chrome.runtime.sendMessage({type:reconnect ? 'dia-tabs-reconnect' : 'dia-tabs-bridge-status'}).catch(() => null);
-  byId('bridge-status').textContent = result?.state === 'connected' ? '本机桥接已连接' : result?.state === 'connecting' ? '正在连接本机桥接…' : `本机桥接未连接${result?.message ? `：${result.message}` : ''}`;
+  const state = result?.state === 'connected' ? 'connected' : result?.state === 'connecting' ? 'connecting' : 'disconnected';
+  byId('bridge-status').textContent = state === 'connected' ? 'Alfred 连接就绪' : state === 'connecting' ? '正在准备 Alfred 连接…' : 'Alfred 连接未就绪';
+  byId('bridge-status').setAttribute('data-state', state);
+  const detail = state === 'disconnected' && result?.message ? result.message : '';
+  byId('bridge-detail').textContent = detail;
+  byId('bridge-detail').hidden = !detail;
 }
 
 async function refresh() {
@@ -97,7 +123,7 @@ async function refresh() {
     selected = retainSelection(selected, tabs);
     if (!tabs.some(tab => tab.tabId === anchor)) anchor = null;
     if (changed) render();
-  } catch { if (!preserveNotice && !syncing) byId('notice').textContent = '无法读取标签列表，请重新加载扩展后刷新本页。'; }
+  } catch { if (!preserveNotice && !syncing) notify('无法读取标签列表，请重新加载扩展后刷新本页。', 'error'); }
   finally {
     loading = false; byId('refresh').disabled = false;
     if (refreshQueued) { refreshQueued = false; refresh(); }
@@ -109,20 +135,22 @@ async function syncOpenTabs() {
   if (syncing) return;
   syncing = true;
   byId('sync').disabled = true;
-  byId('sync').textContent = '正在同步…';
-  byId('notice').textContent = '正在读取已加载网页的原始标题…';
+  byId('sync').setAttribute('aria-busy', 'true');
+  byId('sync-label').textContent = '正在同步…';
+  notify('正在读取已加载网页的原始标题…', 'progress');
   try {
     const result = await chrome.runtime.sendMessage({type: 'dia-tabs-sync'});
     if (!result?.ok) throw Error('sync failed');
     await refresh();
     const labels = {discarded: '已释放', frozen: '已冻结', loading: '加载中', unloaded: '尚未加载', unknown_status: '状态未知', stale: '页面已变化', closed: '已关闭', timeout: '读取超时', capacity: '先前读取尚未结束'};
     const reasons = Object.entries(result.skipReasons || {}).map(([reason, count]) => `${labels[reason] || '其他'} ${count} 个`).join('，');
-    byId('notice').textContent = `同步完成：成功 ${result.captured} 个，无法读取 ${result.unavailable} 个，跳过 ${result.skipped} 个${reasons ? `（${reasons}）` : ''}。`;
-  } catch { byId('notice').textContent = '同步失败，请稍后重试。'; }
+    notify(`同步完成：成功 ${result.captured} 个，无法读取 ${result.unavailable} 个，跳过 ${result.skipped} 个${reasons ? `（${reasons}）` : ''}。`, 'success');
+  } catch { notify('同步失败，请稍后重试。', 'error'); }
   finally {
     syncing = false;
     byId('sync').disabled = false;
-    byId('sync').textContent = '同步已打开标签';
+    byId('sync').setAttribute('aria-busy', 'false');
+    byId('sync-label').textContent = '同步已打开标签';
   }
 }
 

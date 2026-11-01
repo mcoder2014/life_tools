@@ -45,7 +45,7 @@ test('control page prevents default URL navigation, preserves modified selection
     append(...children) {this.children.push(...children);}
     replaceChildren() {this.children=[];}
   }
-  const ids=['search','tabs','copy-urls','copy-markdown','select-all','empty','count','notice','refresh','sync','reconnect','bridge-status'];
+  const ids=['search','tabs','copy-urls','copy-markdown','select-all','empty','count','notice','refresh','sync','reconnect','bridge-status','bridge-detail'];
   const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));
   const requests=[],copied=[];
   const rows=[{tabId:11,windowId:1,index:0,url:'https://example.com/',title:'DOM title',titleState:'captured',active:false}];
@@ -59,7 +59,10 @@ test('control page prevents default URL navigation, preserves modified selection
   const uiSource=(await readFile(new URL('../extension/control.js',import.meta.url),'utf8')).replace(/^import .*;\n/,'');
   runInNewContext(uiSource,context);await new Promise(resolve=>setImmediate(resolve));
   const first=elements.tabs.children[0];
+  const title=first.children[1].children[0];
   const link=first.children[2].children[0];
+  assert.equal(title.title,'DOM title');
+  assert.equal(link.title,'https://example.com/');
   const click={defaultPrevented:false,stopped:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;}};
   link.listeners.click(click);await new Promise(resolve=>setImmediate(resolve));
   assert.equal(click.defaultPrevented,true);assert.equal(click.stopped,true);
@@ -116,6 +119,7 @@ test('sync button shows counts, preserves selection, ignores repeat clicks and r
     constructor(){this.children=[];this.listeners={};this.value='';this.classList={toggle(){}};}
     addEventListener(type,fn){this.listeners[type]=fn;}setAttribute(){}append(...items){this.children.push(...items);}replaceChildren(){this.children=[];}
   }
+  const textOf=element=>[element.textContent,...element.children.map(textOf)].filter(Boolean).join(' ');
   const elements={},event={addListener(){}};let resolveSync,syncCalls=0,fail=false;
   let rows=[{tabId:1,windowId:1,index:0,url:'https://example.com/',title:'Old DOM',titleState:'captured',active:false,status:'unloaded',discarded:true,frozen:false}];
   const context={...core,crypto:{randomUUID:()=> 'request'},setTimeout,window:{addEventListener(){}},
@@ -125,21 +129,51 @@ test('sync button shows counts, preserves selection, ignores repeat clicks and r
   };
   const ui=(await readFile(new URL('../extension/control.js',import.meta.url),'utf8')).replace(/^import .*;\n/,'');
   runInNewContext(ui,context);await new Promise(resolve=>setImmediate(resolve));
-  assert.match(elements.tabs.children[0].children[3].textContent,/已记录.*已释放/);
+  assert.match(textOf(elements.tabs.children[0].children[3]),/已记录.*已释放/);
   elements.tabs.children[0].listeners.click({});
   assert.equal(typeof elements.sync?.listeners.click,'function');
-  const pending=elements.sync.listeners.click();assert.equal(elements.sync.disabled,true);assert.equal(elements.sync.textContent,'正在同步…');
+  const pending=elements.sync.listeners.click();assert.equal(elements.sync.disabled,true);assert.equal(elements['sync-label'].textContent,'正在同步…');
   elements.sync.listeners.click();assert.equal(syncCalls,1);
   rows=[{...rows[0],title:'New DOM'}];resolveSync({ok:true,captured:1,unavailable:2,skipped:3,skipReasons:{discarded:1,unknown_status:2}});await pending;
-  assert.equal(elements.sync.disabled,false);assert.equal(elements.sync.textContent,'同步已打开标签');
+  assert.equal(elements.sync.disabled,false);assert.equal(elements['sync-label'].textContent,'同步已打开标签');
   assert.equal(elements.tabs.children[0].children[0].children[0].checked,true);
   assert.equal(elements.tabs.children[0].children[1].children[0].textContent,'New DOM');
   assert.match(elements.notice.textContent,/成功 1.*无法读取 2.*跳过 3.*已释放 1.*状态未知 2/);
   for (const [status, frozen, expected] of [['complete',true,'已冻结'],['loading',false,'加载中'],['unloaded',false,'尚未加载'],['unknown',false,'状态未知']]) {
     rows=[{...rows[0],discarded:false,frozen,status}];
     await elements.refresh.listeners.click();
-    assert.ok(elements.tabs.children[0].children[3].textContent.includes(expected));
+    assert.ok(textOf(elements.tabs.children[0].children[3]).includes(expected));
     assert.equal(elements.tabs.children[0].children[1].children[0].textContent,'New DOM');
   }
   fail=true;await elements.sync.listeners.click();assert.equal(elements.sync.disabled,false);assert.match(elements.notice.textContent,/同步失败/);
+});
+
+test('bridge failure keeps list actions available and clears stale detail after recovery',async()=>{
+  const {runInNewContext}=await import('node:vm');
+  class Element {
+    constructor(){this.children=[];this.listeners={};this.value='';this.classList={toggle(){}};}
+    addEventListener(type,fn){this.listeners[type]=fn;}setAttribute(){}append(...items){this.children.push(...items);}replaceChildren(){this.children=[];}
+  }
+  const elements={},event={addListener(){}},copied=[];
+  const rows=[{tabId:1,windowId:1,index:0,url:'https://example.com/',title:'Page',titleState:'captured',active:false}];
+  let bridgeResult={state:'disconnected',message:'Specified native messaging host not found'};
+  const context={...core,crypto:{randomUUID:()=> 'request'},setTimeout,window:{addEventListener(){}},
+    document:{getElementById:id=>elements[id] ||= new Element(),createElement:()=>new Element()},navigator:{clipboard:{async writeText(text){copied.push(text);}}},
+    chrome:{runtime:{async sendMessage(request){if(request.op==='list')return {ok:true,sessionId:'s',tabs:rows};return bridgeResult;}},
+      tabs:{onCreated:event,onRemoved:event,onUpdated:event,onActivated:event},storage:{onChanged:event}},
+  };
+  const ui=(await readFile(new URL('../extension/control.js',import.meta.url),'utf8')).replace(/^import .*;\n/,'');
+  runInNewContext(ui,context);await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(elements['bridge-status'].textContent,'Alfred 连接未就绪');
+  assert.equal(elements['bridge-detail'].hidden,false);
+  assert.equal(elements['bridge-detail'].textContent,bridgeResult.message);
+  assert.equal(elements.tabs.children.length,1);
+  elements.tabs.children[0].listeners.click({});
+  await elements['copy-urls'].listeners.click();
+  assert.deepEqual(copied,['https://example.com/']);
+  bridgeResult={state:'connected'};
+  await elements.refresh.listeners.click();
+  assert.equal(elements['bridge-status'].textContent,'Alfred 连接就绪');
+  assert.equal(elements['bridge-detail'].hidden,true);
+  assert.equal(elements['bridge-detail'].textContent,'');
 });
