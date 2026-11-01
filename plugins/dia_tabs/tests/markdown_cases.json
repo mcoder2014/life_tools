@@ -1,0 +1,32 @@
+[
+  {
+    "title": "Example",
+    "url": "https://example.com/",
+    "expected": "[Example](https://example.com/)"
+  },
+  {
+    "title": "Line one\r\nLine two\tend",
+    "url": "https://example.com/a b(c)<d>",
+    "expected": "[Line one Line two\tend](https://example.com/a%20b%28c%29%3Cd%3E)"
+  },
+  {
+    "title": "A [tag] \\ B",
+    "url": "https://example.com/%E4%B8%AD?q=one%20two",
+    "expected": "[A \\[tag\\] \\\\ B](https://example.com/%E4%B8%AD?q=one%20two)"
+  },
+  {
+    "title": "",
+    "url": "https://example.com/a(b)",
+    "expected": "[https://example.com/a(b)](https://example.com/a%28b%29)"
+  },
+  {
+    "title": "中文标题",
+    "url": "https://example.com/\t\n",
+    "expected": "[中文标题](https://example.com/%09%0A%7F)"
+  },
+  {
+    "title": "Backslash",
+    "url": "https://example.com/a\\(b)",
+    "expected": "[Backslash](https://example.com/a%5C%28b%29)"
+  }
+]

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Dia Tabs Demo Alpha</title>
+<style>body{font:16px/1.6 system-ui;max-width:780px;margin:48px auto;padding:0 24px;background:#f6f8fa;color:#19232d}button,a{margin:8px 12px 8px 0}button,textarea{font:inherit;padding:10px}textarea{display:block;width:100%;height:160px}code{background:#e4eaf0;padding:3px 5px}</style></head>
+<body>
+<h1>Dia Tabs · Alpha 公开演示页</h1>
+<p>初始 document.title 为 <code>Dia Tabs Demo Alpha</code>。可在 Dia 手动重命名标签，随后测试扩展仍读取网页标题。</p>
+<button id="change" type="button">修改网页标题</button><button id="reset" type="button">恢复初始标题</button>
+<p id="current">当前网页标题：Dia Tabs Demo Alpha</p>
+<p><a href="beta.html" target="_blank" rel="noopener">打开 Beta 新标签</a><a href="alpha.html" target="_blank" rel="noopener">打开同 URL 的 Alpha 副本</a><a href="alpha.html">同 URL 重新加载</a></p>
+<label for="clipboard">在此粘贴，核对 URL 或 Markdown 剪贴板内容</label><textarea id="clipboard" placeholder="粘贴复制结果"></textarea>
+<script>
+function setTitle(value) { document.title=value; document.getElementById('current').textContent='当前网页标题：'+value; }
+document.getElementById('change').addEventListener('click',()=>setTitle('Alpha [changed] 中文'));
+document.getElementById('reset').addEventListener('click',()=>setTitle('Dia Tabs Demo Alpha'));
+</script>
+</body></html>

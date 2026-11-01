@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dia 网页标题与标签</title>
+  <link rel="stylesheet" href="control.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">LIFE TOOLS · DIA</p><h1>网页标题与标签</h1></div>
+      <button id="refresh" type="button">刷新列表</button>
+    </header>
+    <p class="intro">记录页面原始标题。点击标题或网址，切换到已有标签。</p>
+    <section class="bridge" aria-label="本机桥接状态">
+      <span id="bridge-status">正在检查本机桥接…</span>
+      <button id="reconnect" type="button">重新连接</button>
+      <span class="muted">桥接用于 Alfred；本页可独立使用。</span>
+    </section>
+    <section class="toolbar" aria-label="筛选和复制">
+      <label class="search">搜索标题或网址<input id="search" type="search" placeholder="输入关键词" autocomplete="off"></label>
+      <div class="actions"><button id="copy-urls" type="button" disabled>复制所选 URL</button><button id="copy-markdown" type="button" disabled>复制所选 Markdown</button></div>
+    </section>
+    <div class="table-meta"><span id="count">正在读取…</span><span>单击行选择 · ⌘/Ctrl 切换 · Shift 连选</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="select-col"><input id="select-all" type="checkbox" aria-label="选择全部可见标签"></th><th>网页原始标题</th><th>网址</th><th class="state-col">状态 / 窗口</th><th class="copy-col">复制</th></tr></thead>
+        <tbody id="tabs"></tbody>
+      </table>
+      <p id="empty" hidden>没有匹配的 HTTP/HTTPS 网页标签。</p>
+    </div>
+    <p class="footnote">未访问的后台页面显示“待访问”；切换到该页面且加载完成后记录标题。隐私窗口不在列表内。</p>
+    <p id="notice" role="status" aria-live="polite"></p>
+  </main>
+  <script type="module" src="control.js"></script>
+</body>
+</html>

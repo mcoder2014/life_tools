@@ -1,0 +1,83 @@
+name: Dia Tabs
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/dia-tabs.yml'
+      - 'plugins/dia_tabs/**'
+      - 'docs/plugins/dia_tabs.md'
+      - 'docs/specs/2026-11-01-dia-tabs-design.md'
+      - 'docs/release.md'
+      - 'README.MD'
+      - 'AGENTS.md'
+  push:
+    branches: [master]
+    tags: ['v*']
+    paths:
+      - '.github/workflows/dia-tabs.yml'
+      - 'plugins/dia_tabs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check syntax and plist
+        run: |
+          bash -n plugins/dia_tabs/build.sh plugins/dia_tabs/install.sh plugins/dia_tabs/workflow/scripts/*.sh
+          plutil -lint plugins/dia_tabs/workflow/info.plist
+          for file in plugins/dia_tabs/extension/*.js; do node --input-type=module --check < "$file"; done
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          for path in Path('plugins/dia_tabs').rglob('*.py'):
+              ast.parse(path.read_text(), filename=str(path))
+          PY
+      - name: Test extension and native bridge
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          node --test plugins/dia_tabs/tests/*.test.mjs
+          python3 -m unittest discover -s plugins/dia_tabs/tests -p 'test_*.py' -v
+      - name: Build and inspect archives
+        run: |
+          version=ci
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then version="$GITHUB_REF_NAME"; fi
+          plugins/dia_tabs/build.sh "$RUNNER_TEMP/dia-tabs" "$version"
+          for file in "$RUNNER_TEMP/dia-tabs/"*; do unzip -t "$file"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dia-tabs
+          path: ${{ runner.temp }}/dia-tabs/*
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dia-tabs
+          path: artifacts
+      - name: Attach Dia Tabs assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --generate-notes || gh release view "$TAG" >/dev/null
+          fi
+          gh release upload "$TAG" artifacts/* --clobber

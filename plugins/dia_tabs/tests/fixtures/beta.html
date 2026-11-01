@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Dia Tabs Demo Beta</title>
+<style>body{font:16px/1.6 system-ui;max-width:780px;margin:48px auto;padding:0 24px;background:#f0f7f4;color:#19232d}button,a{margin:8px 12px 8px 0}button,textarea{font:inherit;padding:10px}textarea{display:block;width:100%;height:160px}</style></head>
+<body>
+<h1>Dia Tabs · Beta 公开演示页</h1><p>用于跨标签和跨窗口激活验证；不发送网络请求。</p>
+<button id="change" type="button">改成包含换行和方括号的标题</button><button id="empty" type="button">设为空标题</button>
+<p><a href="alpha.html" target="_blank" rel="noopener">打开 Alpha 新标签</a><a href="beta.html" target="_blank" rel="noopener">打开同 URL 的 Beta 副本</a></p>
+<label for="clipboard">粘贴剪贴板内容</label><textarea id="clipboard" placeholder="粘贴复制结果"></textarea>
+<script>
+document.getElementById('change').addEventListener('click',()=>{document.title='Beta [link] \\ title\nSecond line';});
+document.getElementById('empty').addEventListener('click',()=>{document.title='';});
+</script>
+</body></html>
