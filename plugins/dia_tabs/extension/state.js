@@ -47,20 +47,26 @@ export function createTabService(api) {
     if (sessionId) persist();
   };
   const capture = async (tab, {allowBackground = false} = {}) => {
-    if (!isWeb(tab) || (!allowBackground && !tab.active) || tab.status !== 'complete' || tab.discarded || tab.frozen) return 'skipped';
+    if (!isWeb(tab)) return 'unsupported';
+    if (!allowBackground && !tab.active) return 'inactive';
+    if (tab.discarded) return 'discarded';
+    if (tab.frozen) return 'frozen';
+    if (tab.status !== 'complete') return tab.status === 'loading' ? 'loading' : tab.status === 'unloaded' ? 'unloaded' : 'unknown_status';
     const version = versions.get(tab.id) || 0, sample = (samples.get(tab.id) || 0) + 1;
     samples.set(tab.id, sample);
     // A queued manual sample must not inject into a tab discarded/frozen since
     // the batch snapshot. No activation, reload or other wake-up is attempted.
     if (allowBackground) {
       let current;
-      try { current = await api.tabs.get(tab.id); } catch { return 'skipped'; }
-      if (!isWeb(current) || current.status !== 'complete' || current.discarded || current.frozen || current.url !== tab.url
-        || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'skipped';
+      try { current = await api.tabs.get(tab.id); } catch { return 'closed'; }
+      if (current.discarded) return 'discarded';
+      if (current.frozen) return 'frozen';
+      if (!isWeb(current) || current.url !== tab.url || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'stale';
+      if (current.status !== 'complete') return current.status === 'loading' ? 'loading' : current.status === 'unloaded' ? 'unloaded' : 'unknown_status';
     }
     let page, timeout;
     try {
-      if (allowBackground && pendingManual.size >= 4) return 'skipped';
+      if (allowBackground && pendingManual.size >= 4) return 'capacity';
       const execution = api.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, func: readPageTitle});
       if (allowBackground) {
         pendingManual.add(execution);
@@ -69,15 +75,18 @@ export function createTabService(api) {
       const results = allowBackground ? await Promise.race([execution, new Promise(resolve => {
         timeout = setTimeout(() => resolve(null), 5000);
       })]) : await execution;
-      if (results === null) return 'skipped';
+      if (results === null) return 'timeout';
       page = results.find(result => result.frameId === 0)?.result;
     } catch { /* Restricted pages remain visible with an explicit unavailable state. */ }
     finally { clearTimeout(timeout); }
     let current;
-    try { current = await api.tabs.get(tab.id); } catch { return 'skipped'; }
-    if (!isWeb(current) || (!allowBackground && !current.active) || current.status !== 'complete' || current.discarded || current.frozen || current.url !== tab.url
-      || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'skipped';
-    if (page && (page.url !== tab.url || page.readyState !== 'complete')) return 'skipped';
+    try { current = await api.tabs.get(tab.id); } catch { return 'closed'; }
+    if (current.discarded) return 'discarded';
+    if (current.frozen) return 'frozen';
+    if (!isWeb(current) || current.url !== tab.url || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'stale';
+    if (!allowBackground && !current.active) return 'inactive';
+    if (current.status !== 'complete') return current.status === 'loading' ? 'loading' : current.status === 'unloaded' ? 'unloaded' : 'unknown_status';
+    if (page && (page.url !== tab.url || page.readyState !== 'complete')) return 'stale';
     records.set(tab.id, {url: tab.url, title: typeof page?.title === 'string' ? page.title : '',
       titleState: typeof page?.title === 'string' ? 'captured' : 'unavailable'});
     persist();
@@ -127,7 +136,10 @@ export function createTabService(api) {
       const record = records.get(tab.id);
       const valid = record?.url === tab.url;
       return {tabId: tab.id, windowId: tab.windowId, index: tab.index, url: tab.url,
-        title: valid ? record.title : '', titleState: valid ? record.titleState : 'pending', active: tab.active};
+        title: valid ? record.title : '', titleState: valid ? record.titleState : 'pending', active: tab.active,
+        status: typeof tab.status === 'string' ? tab.status : 'unknown',
+        discarded: typeof tab.discarded === 'boolean' ? tab.discarded : null,
+        frozen: typeof tab.frozen === 'boolean' ? tab.frozen : null};
     });
   };
   const syncOpenTabs = () => {
@@ -135,12 +147,13 @@ export function createTabService(api) {
     syncPromise = (async () => {
       await ready;
       const tabs = (await api.tabs.query({})).filter(isWeb);
-      const counts = {captured: 0, unavailable: 0, skipped: 0};
+      const counts = {captured: 0, unavailable: 0, skipped: 0, skipReasons: {}};
       let next = 0;
       await Promise.all(Array.from({length: Math.min(4, tabs.length)}, async () => {
         while (next < tabs.length) {
           const result = await capture(tabs[next++], {allowBackground: true});
-          counts[result]++;
+          if (result === 'captured' || result === 'unavailable') counts[result]++;
+          else { counts.skipped++; counts.skipReasons[result] = (counts.skipReasons[result] || 0) + 1; }
         }
       }));
       return counts;

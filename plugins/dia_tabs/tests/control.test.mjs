@@ -117,7 +117,7 @@ test('sync button shows counts, preserves selection, ignores repeat clicks and r
     addEventListener(type,fn){this.listeners[type]=fn;}setAttribute(){}append(...items){this.children.push(...items);}replaceChildren(){this.children=[];}
   }
   const elements={},event={addListener(){}};let resolveSync,syncCalls=0,fail=false;
-  let rows=[{tabId:1,windowId:1,index:0,url:'https://example.com/',title:'Old DOM',titleState:'captured',active:false}];
+  let rows=[{tabId:1,windowId:1,index:0,url:'https://example.com/',title:'Old DOM',titleState:'captured',active:false,status:'unloaded',discarded:true,frozen:false}];
   const context={...core,crypto:{randomUUID:()=> 'request'},setTimeout,window:{addEventListener(){}},
     document:{getElementById:id=>elements[id] ||= new Element(),createElement:()=>new Element()},navigator:{clipboard:{async writeText(){}}},
     chrome:{runtime:{async sendMessage(request){if(request.type==='dia-tabs-sync'){syncCalls++;if(fail)throw Error('bridge gone');return new Promise(resolve=>{resolveSync=resolve;});}if(request.op==='list')return {ok:true,sessionId:'s',tabs:rows};return {state:'connected'};}},
@@ -125,14 +125,21 @@ test('sync button shows counts, preserves selection, ignores repeat clicks and r
   };
   const ui=(await readFile(new URL('../extension/control.js',import.meta.url),'utf8')).replace(/^import .*;\n/,'');
   runInNewContext(ui,context);await new Promise(resolve=>setImmediate(resolve));
+  assert.match(elements.tabs.children[0].children[3].textContent,/已记录.*已释放/);
   elements.tabs.children[0].listeners.click({});
   assert.equal(typeof elements.sync?.listeners.click,'function');
   const pending=elements.sync.listeners.click();assert.equal(elements.sync.disabled,true);assert.equal(elements.sync.textContent,'正在同步…');
   elements.sync.listeners.click();assert.equal(syncCalls,1);
-  rows=[{...rows[0],title:'New DOM'}];resolveSync({ok:true,captured:1,unavailable:2,skipped:3});await pending;
+  rows=[{...rows[0],title:'New DOM'}];resolveSync({ok:true,captured:1,unavailable:2,skipped:3,skipReasons:{discarded:1,unknown_status:2}});await pending;
   assert.equal(elements.sync.disabled,false);assert.equal(elements.sync.textContent,'同步已打开标签');
   assert.equal(elements.tabs.children[0].children[0].children[0].checked,true);
   assert.equal(elements.tabs.children[0].children[1].children[0].textContent,'New DOM');
-  assert.match(elements.notice.textContent,/成功 1.*无法读取 2.*跳过 3/);
+  assert.match(elements.notice.textContent,/成功 1.*无法读取 2.*跳过 3.*已释放 1.*状态未知 2/);
+  for (const [status, frozen, expected] of [['complete',true,'已冻结'],['loading',false,'加载中'],['unloaded',false,'尚未加载'],['unknown',false,'状态未知']]) {
+    rows=[{...rows[0],discarded:false,frozen,status}];
+    await elements.refresh.listeners.click();
+    assert.ok(elements.tabs.children[0].children[3].textContent.includes(expected));
+    assert.equal(elements.tabs.children[0].children[1].children[0].textContent,'New DOM');
+  }
   fail=true;await elements.sync.listeners.click();assert.equal(elements.sync.disabled,false);assert.match(elements.notice.textContent,/同步失败/);
 });

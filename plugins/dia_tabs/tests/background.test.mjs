@@ -135,7 +135,7 @@ test('explicit sync reads complete background pages without activating or waking
   const execute=f.api.scripting.executeScript;
   f.api.scripting.executeScript=async options=>{if(options.target.tabId===8)throw Error('restricted');return execute(options);};
   assert.equal(typeof s.syncOpenTabs,'function');
-  assert.deepEqual(await s.syncOpenTabs(),{captured:2,unavailable:1,skipped:3});
+  assert.deepEqual(await s.syncOpenTabs(),{captured:2,unavailable:1,skipped:3,skipReasons:{loading:1,discarded:1,frozen:1}});
   const rows=await s.list();
   assert.equal(rows.find(row=>row.tabId===1).title,'DOM 1');
   assert.equal(rows.find(row=>row.tabId===8).titleState,'unavailable');
@@ -161,7 +161,7 @@ test('sync shares one in-flight batch and never exceeds four simultaneous sample
     for(const release of waiting.splice(0)) release();
     await new Promise(resolve=>setImmediate(resolve));
   }
-  assert.deepEqual(await first,{captured:9,unavailable:0,skipped:0});
+  assert.deepEqual(await first,{captured:9,unavailable:0,skipped:0,skipReasons:{}});
   assert.equal(maximum,4);assert.equal(total,9);
 });
 
@@ -180,7 +180,7 @@ test('manual background results are rejected after navigation, close or a later 
       await new Promise(resolve=>setImmediate(resolve));
     }
     release([{frameId:0,result:{title:'Stale manual title',url:'https://example.com/',readyState:'complete'}}]);
-    assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1});await s.idle();
+    assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1,skipReasons:{[change==='close'?'closed':'stale']:1}});await s.idle();
     assert.equal(f.storage.diaTabsRecords[1]?.title,change==='close'?undefined:change==='newer'?'Newer DOM':'');
   });
 });
@@ -195,7 +195,7 @@ test('sync rechecks discarded/frozen before injection and rejects a page frozen 
     return [{frameId:0,result:{title:'Frozen result',url:'https://example.com/',readyState:'complete'}}];
   };
   assert.equal(typeof s.syncOpenTabs,'function');
-  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:2});assert.equal(scripts,1);
+  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:2,skipReasons:{discarded:1,frozen:1}});assert.equal(scripts,1);
 });
 
 test('a stalled manual script times out as skipped and late execution cannot restore its result', async t => {
@@ -204,7 +204,7 @@ test('a stalled manual script times out as skipped and late execution cannot res
   t.mock.timers.enable({apis:['setTimeout']});
   assert.equal(typeof s.syncOpenTabs,'function');const pending=s.syncOpenTabs();
   await new Promise(resolve=>setImmediate(resolve));t.mock.timers.tick(5000);
-  assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1});
+  assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1,skipReasons:{timeout:1}});
   release([{frameId:0,result:{title:'Too late',url:'https://example.com/',readyState:'complete'}}]);
   await new Promise(resolve=>setImmediate(resolve));await s.idle();
   assert.equal(f.storage.diaTabsRecords[1]?.title,'');
@@ -217,8 +217,19 @@ test('timed-out scripts keep the four execution slots across repeated sync batch
   t.mock.timers.enable({apis:['setTimeout']});
   const first=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,4);
   t.mock.timers.tick(5000);await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,4);
-  assert.deepEqual(await first,{captured:0,unavailable:0,skipped:9});
-  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:9});assert.equal(calls,4);
+  assert.deepEqual(await first,{captured:0,unavailable:0,skipped:9,skipReasons:{timeout:4,capacity:5}});
+  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:9,skipReasons:{capacity:9}});assert.equal(calls,4);
   for(const resolve of release)resolve([{frameId:0,result:{title:'Late',url:'https://example.com/',readyState:'complete'}}]);
   await new Promise(resolve=>setImmediate(resolve));
+});
+
+
+test('list exposes live diagnostic fields and sync prioritizes discarded over unloaded status', async () => {
+  const f=fake([tab(1,{active:false,status:'unloaded',discarded:true}),tab(2,{active:false,status:undefined}),tab(3,{active:false,status:'loading'}),tab(4,{active:false,frozen:true}),tab(5,{active:false,status:'unloaded'})]);
+  const s=service(f.api);await s.ready;
+  const rows=await s.list();
+  assert.equal(rows[0].status,'unloaded');assert.equal(rows[0].discarded,true);
+  assert.equal(rows[1].status,'unknown');assert.equal(rows[1].discarded,null);assert.equal(rows[1].frozen,null);
+  assert.deepEqual((await s.syncOpenTabs()).skipReasons,{discarded:1,unknown_status:1,loading:1,frozen:1,unloaded:1});
+  assert.equal(f.calls.length,0);
 });

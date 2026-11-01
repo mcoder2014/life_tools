@@ -64,7 +64,7 @@
 
 采集前记下 tabId、URL 和版本；异步脚本返回后重新 `tabs.get`，仅在标签仍存在、仍 active、仍 complete、未 discarded/frozen、版本和 URL 均相同、DOM readyState 为 complete 时接受。显式手动同步仅放宽 active 门槛，并在注入前再次读取实时标签状态；导航、关闭和更晚采样校验不变。导航事件必须先同步使版本失效，再执行异步工作。关闭后的延迟响应不可重新插回缓存。缓存写入应串行或按 tab key 写，避免两个异步采集互相覆盖整张表。
 
-手动同步最多并发 4 个实际未结束的脚本读取，重复请求复用同一批次。读取超过 5 秒结束等待并计为跳过；浏览器尚未结束的脚本继续占用额度，直到实际成功或失败，额度不足时其余页面计为跳过，防止超时累积无限注入。成功、无法读取、跳过数量来自本轮实际采集结果，不从历史缓存推算。
+手动同步最多并发 4 个实际未结束的脚本读取，重复请求复用同一批次。读取超过 5 秒结束等待并计为跳过；浏览器尚未结束的脚本继续占用额度，直到实际成功或失败，额度不足时其余页面计为跳过，防止超时累积无限注入。成功、无法读取、跳过数量来自本轮实际采集结果，不从历史缓存推算。同步响应另含 `skipReasons` 原因计数：`discarded`、`frozen`、`loading`、`unloaded`、`unknown_status`、`stale`、`closed`、`timeout`、`capacity`；已释放、冻结优先于 status 判定。仅返回本轮汇总，不持久化诊断。
 
 service worker 的事件监听器在模块顶层同步注册。初始化载入 session 后，重新查询当前标签并清理不存在或 URL 不符的记录。不能只依赖 `onStartup`：休眠后重启 worker 同样要初始化。
 
@@ -87,7 +87,7 @@ Native host 名称固定为 `com.mcoder2014.life_tools.dia_tabs`。协议使用 
 {"v":1,"id":"request-uuid","ok":false,"error":"TAB_CLOSED"}
 ```
 
-`tabs` 每项字段固定为 `{tabId:number, windowId:number, index:number, url:string, title:string, titleState:"captured"|"pending"|"unavailable", active:boolean}`。空 title 且 captured 表示无标题；pending 表示未采集。成功激活响应为 `{v:1,id,ok:true}`。失败允许 `TAB_CLOSED`、`STALE_SESSION`、`BAD_REQUEST`、`INTERNAL_ERROR`，可附 `message:string`；不得把内部 traceback 发给页面。native host 可以在连接/超时时补 `BRIDGE_UNAVAILABLE`、`TIMEOUT` 错误。
+`tabs` 每项字段固定为 `{tabId:number, windowId:number, index:number, url:string, title:string, titleState:"captured"|"pending"|"unavailable", active:boolean}`。列表另附实时 `status`（缺失为 `unknown`）、`discarded` 和 `frozen`（缺失为 `null`），用于控制页解释当前状态，不改变标题缓存。空 title 且 captured 表示无标题；pending 表示未采集。成功激活响应为 `{v:1,id,ok:true}`。失败允许 `TAB_CLOSED`、`STALE_SESSION`、`BAD_REQUEST`、`INTERNAL_ERROR`，可附 `message:string`；不得把内部 traceback 发给页面。native host 可以在连接/超时时补 `BRIDGE_UNAVAILABLE`、`TIMEOUT` 错误。
 
 Unix socket 一次连接一个请求，使用换行分隔 JSON，设置读取超时与消息上限。native stdio 按 Chrome 协议使用 4 字节本机字节序长度 + UTF-8 JSON；stdout 只能写协议，诊断走 stderr，不记录真实 title/URL。host 为并发客户端分配内部请求 ID，不能直接信任客户端 id 的全局唯一性。超时或断线必须解除等待，不遗留 pending 请求。
 

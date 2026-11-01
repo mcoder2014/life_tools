@@ -63,7 +63,8 @@ function render() {
     link.addEventListener('auxclick', event => { event.preventDefault(); event.stopPropagation(); });
     urlCell.append(link);
     const stateCell = document.createElement('td'); stateCell.className = 'state';
-    stateCell.textContent = `${tab.active ? '当前标签 · ' : ''}${tab.titleState === 'captured' ? '已记录' : tab.titleState === 'pending' ? '待访问' : '无法读取'} · 窗口 ${tab.windowId}`;
+    const pageState = tab.discarded ? '已释放' : tab.frozen ? '已冻结' : tab.status === 'loading' ? '加载中' : tab.status === 'unloaded' ? '尚未加载' : tab.status === 'complete' ? '已加载' : '状态未知';
+    stateCell.textContent = `${tab.active ? '当前标签 · ' : ''}${tab.titleState === 'captured' ? '已记录' : tab.titleState === 'pending' ? '待访问' : '无法读取'} · ${pageState} · 窗口 ${tab.windowId}`;
     const copyCell = document.createElement('td');
     const copyButton = document.createElement('button'); copyButton.type = 'button'; copyButton.className = 'copy-button'; copyButton.textContent = '复制 URL';
     copyButton.addEventListener('click', event => { event.stopPropagation(); copy(tab.url); }); copyCell.append(copyButton);
@@ -114,7 +115,9 @@ async function syncOpenTabs() {
     const result = await chrome.runtime.sendMessage({type: 'dia-tabs-sync'});
     if (!result?.ok) throw Error('sync failed');
     await refresh();
-    byId('notice').textContent = `同步完成：成功 ${result.captured} 个，无法读取 ${result.unavailable} 个，跳过 ${result.skipped} 个。`;
+    const labels = {discarded: '已释放', frozen: '已冻结', loading: '加载中', unloaded: '尚未加载', unknown_status: '状态未知', stale: '页面已变化', closed: '已关闭', timeout: '读取超时', capacity: '先前读取尚未结束'};
+    const reasons = Object.entries(result.skipReasons || {}).map(([reason, count]) => `${labels[reason] || '其他'} ${count} 个`).join('，');
+    byId('notice').textContent = `同步完成：成功 ${result.captured} 个，无法读取 ${result.unavailable} 个，跳过 ${result.skipped} 个${reasons ? `（${reasons}）` : ''}。`;
   } catch { byId('notice').textContent = '同步失败，请稍后重试。'; }
   finally {
     syncing = false;
