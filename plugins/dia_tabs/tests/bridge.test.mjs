@@ -17,7 +17,7 @@ function harness(unavailable=false) {
     action:{onClicked:event('action')},
   };
   runInNewContext(source,{chrome:api,createTabService:()=>service});
-  return {api,events,ports,alarms,notices};
+  return {api,events,ports,alarms,notices,service};
 }
 
 test('native bridge forwards protocol, retries only on minute alarm and reports disconnection',async()=>{
@@ -29,6 +29,20 @@ test('native bridge forwards protocol, retries only on minute alarm and reports 
   assert.equal(status.state,'disconnected');assert.equal(f.ports.length,1);
   f.events.alarm({name:'unrelated'});assert.equal(f.ports.length,1);
   f.events.alarm({name:'dia-tabs-reconnect'});assert.equal(f.ports.length,2);
+});
+
+test('only trusted extension pages can sync; errors reply and native cannot call sync',async()=>{
+  const f=harness();let calls=0,response;
+  f.service.syncOpenTabs=async()=>{calls++;return {captured:2,unavailable:1,skipped:3};};
+  const control={id:'extension-id',url:'chrome-extension://extension-id/control.html'};
+  assert.equal(f.events.message({type:'dia-tabs-sync'},control,value=>response=value),true);
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,1);assert.equal(response.captured,2);
+  response=undefined;
+  assert.equal(f.events.message({type:'dia-tabs-sync'},{id:'extension-id',url:'https://example.com/',tab:{id:7},frameId:0},()=>{}),false);
+  f.ports[0].receive({v:1,id:'native',type:'dia-tabs-sync'});await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,1);
+  f.service.syncOpenTabs=async()=>{throw Error('private diagnostic');};
+  f.events.message({type:'dia-tabs-sync'},control,value=>response=value);await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(response.ok,false);assert.equal(response.error,'INTERNAL_ERROR');assert.ok(!response.message.includes('private diagnostic'));
 });
 
 test('control remains usable without native host and content/foreign messages cannot activate tabs',async()=>{

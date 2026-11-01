@@ -26,7 +26,8 @@ export function readPageTitle() {
 // every asynchronous result is checked against both navigation and sample IDs.
 export function createTabService(api) {
   const records = new Map(), versions = new Map(), samples = new Map(), tasks = new Set(), initialRemovals = new Set();
-  let sessionId, initialized = false, writeTail = Promise.resolve();
+  const pendingManual = new Set();
+  let sessionId, initialized = false, writeTail = Promise.resolve(), syncPromise = null;
   const persist = () => {
     writeTail = writeTail.catch(() => {}).then(() => api.storage.session.set({
       diaTabsSession: sessionId, diaTabsRecords: Object.fromEntries(records),
@@ -45,23 +46,42 @@ export function createTabService(api) {
     else records.delete(id);
     if (sessionId) persist();
   };
-  const capture = async tab => {
-    if (!isWeb(tab) || !tab.active || tab.status !== 'complete') return;
+  const capture = async (tab, {allowBackground = false} = {}) => {
+    if (!isWeb(tab) || (!allowBackground && !tab.active) || tab.status !== 'complete' || tab.discarded || tab.frozen) return 'skipped';
     const version = versions.get(tab.id) || 0, sample = (samples.get(tab.id) || 0) + 1;
     samples.set(tab.id, sample);
-    let page;
+    // A queued manual sample must not inject into a tab discarded/frozen since
+    // the batch snapshot. No activation, reload or other wake-up is attempted.
+    if (allowBackground) {
+      let current;
+      try { current = await api.tabs.get(tab.id); } catch { return 'skipped'; }
+      if (!isWeb(current) || current.status !== 'complete' || current.discarded || current.frozen || current.url !== tab.url
+        || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'skipped';
+    }
+    let page, timeout;
     try {
-      const results = await api.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, func: readPageTitle});
+      if (allowBackground && pendingManual.size >= 4) return 'skipped';
+      const execution = api.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, func: readPageTitle});
+      if (allowBackground) {
+        pendingManual.add(execution);
+        execution.then(() => pendingManual.delete(execution), () => pendingManual.delete(execution));
+      }
+      const results = allowBackground ? await Promise.race([execution, new Promise(resolve => {
+        timeout = setTimeout(() => resolve(null), 5000);
+      })]) : await execution;
+      if (results === null) return 'skipped';
       page = results.find(result => result.frameId === 0)?.result;
     } catch { /* Restricted pages remain visible with an explicit unavailable state. */ }
+    finally { clearTimeout(timeout); }
     let current;
-    try { current = await api.tabs.get(tab.id); } catch { return; }
-    if (!isWeb(current) || !current.active || current.status !== 'complete' || current.url !== tab.url
-      || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return;
-    if (page && (page.url !== tab.url || page.readyState !== 'complete')) return;
+    try { current = await api.tabs.get(tab.id); } catch { return 'skipped'; }
+    if (!isWeb(current) || (!allowBackground && !current.active) || current.status !== 'complete' || current.discarded || current.frozen || current.url !== tab.url
+      || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'skipped';
+    if (page && (page.url !== tab.url || page.readyState !== 'complete')) return 'skipped';
     records.set(tab.id, {url: tab.url, title: typeof page?.title === 'string' ? page.title : '',
       titleState: typeof page?.title === 'string' ? 'captured' : 'unavailable'});
     persist();
+    return records.get(tab.id).titleState;
   };
   const ready = (async () => {
     const saved = await api.storage.session.get(['diaTabsSession', 'diaTabsRecords']);
@@ -79,7 +99,7 @@ export function createTabService(api) {
     initialized = true;
     initialRemovals.clear();
     persist();
-    await Promise.all(tabs.map(capture));
+    await Promise.all(tabs.map(tab => capture(tab)));
   })();
   const refreshTab = id => track(ready.then(async () => {
     try { const tab = await api.tabs.get(id); await capture(tab); } catch { /* Tab closed. */ }
@@ -101,7 +121,7 @@ export function createTabService(api) {
     const tabs = (await api.tabs.query({})).filter(isWeb).sort((a,b) => a.windowId-b.windowId || a.index-b.index);
     const live = new Set(tabs.map(tab => tab.id));
     for (const id of records.keys()) if (!live.has(id)) records.delete(id);
-    await Promise.all(tabs.filter(tab => !records.has(tab.id) || records.get(tab.id).url !== tab.url || records.get(tab.id).titleState === 'pending').map(capture));
+    await Promise.all(tabs.filter(tab => !records.has(tab.id) || records.get(tab.id).url !== tab.url || records.get(tab.id).titleState === 'pending').map(tab => capture(tab)));
     persist();
     return tabs.map(tab => {
       const record = records.get(tab.id);
@@ -109,6 +129,24 @@ export function createTabService(api) {
       return {tabId: tab.id, windowId: tab.windowId, index: tab.index, url: tab.url,
         title: valid ? record.title : '', titleState: valid ? record.titleState : 'pending', active: tab.active};
     });
+  };
+  const syncOpenTabs = () => {
+    if (syncPromise) return syncPromise;
+    syncPromise = (async () => {
+      await ready;
+      const tabs = (await api.tabs.query({})).filter(isWeb);
+      const counts = {captured: 0, unavailable: 0, skipped: 0};
+      let next = 0;
+      await Promise.all(Array.from({length: Math.min(4, tabs.length)}, async () => {
+        while (next < tabs.length) {
+          const result = await capture(tabs[next++], {allowBackground: true});
+          counts[result]++;
+        }
+      }));
+      return counts;
+    })().finally(() => { syncPromise = null; });
+    track(syncPromise);
+    return syncPromise;
   };
   const handleRequest = async request => {
     const response = {v: 1, id: typeof request?.id === 'string' ? request.id : '', ok: false};
@@ -134,7 +172,7 @@ export function createTabService(api) {
       return {...response, ok: true};
     } catch { return fail('INTERNAL_ERROR', '浏览器操作失败，请刷新后重试'); }
   };
-  return {ready, list, handleRequest, refreshTab, get sessionId() {return sessionId;}, async idle() {
+  return {ready, list, syncOpenTabs, handleRequest, refreshTab, get sessionId() {return sessionId;}, async idle() {
     await ready;
     while (tasks.size) await Promise.allSettled([...tasks]);
     await writeTail;

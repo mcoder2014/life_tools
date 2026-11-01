@@ -45,7 +45,7 @@ test('control page prevents default URL navigation, preserves modified selection
     append(...children) {this.children.push(...children);}
     replaceChildren() {this.children=[];}
   }
-  const ids=['search','tabs','copy-urls','copy-markdown','select-all','empty','count','notice','refresh','reconnect','bridge-status'];
+  const ids=['search','tabs','copy-urls','copy-markdown','select-all','empty','count','notice','refresh','sync','reconnect','bridge-status'];
   const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));
   const requests=[],copied=[];
   const rows=[{tabId:11,windowId:1,index:0,url:'https://example.com/',title:'DOM title',titleState:'captured',active:false}];
@@ -108,4 +108,31 @@ test('refresh queues events during list and refreshes captured titles after sess
   assert.equal(calls,previousCalls);
   events.updated(1,{title:'Unrelated UI title'});await new Promise(resolve=>setImmediate(resolve));
   assert.equal(elements.tabs.renders,previousRenders);
+});
+
+test('sync button shows counts, preserves selection, ignores repeat clicks and recovers after failure',async()=>{
+  const {runInNewContext}=await import('node:vm');
+  class Element {
+    constructor(){this.children=[];this.listeners={};this.value='';this.classList={toggle(){}};}
+    addEventListener(type,fn){this.listeners[type]=fn;}setAttribute(){}append(...items){this.children.push(...items);}replaceChildren(){this.children=[];}
+  }
+  const elements={},event={addListener(){}};let resolveSync,syncCalls=0,fail=false;
+  let rows=[{tabId:1,windowId:1,index:0,url:'https://example.com/',title:'Old DOM',titleState:'captured',active:false}];
+  const context={...core,crypto:{randomUUID:()=> 'request'},setTimeout,window:{addEventListener(){}},
+    document:{getElementById:id=>elements[id] ||= new Element(),createElement:()=>new Element()},navigator:{clipboard:{async writeText(){}}},
+    chrome:{runtime:{async sendMessage(request){if(request.type==='dia-tabs-sync'){syncCalls++;if(fail)throw Error('bridge gone');return new Promise(resolve=>{resolveSync=resolve;});}if(request.op==='list')return {ok:true,sessionId:'s',tabs:rows};return {state:'connected'};}},
+      tabs:{onCreated:event,onRemoved:event,onUpdated:event,onActivated:event},storage:{onChanged:event}},
+  };
+  const ui=(await readFile(new URL('../extension/control.js',import.meta.url),'utf8')).replace(/^import .*;\n/,'');
+  runInNewContext(ui,context);await new Promise(resolve=>setImmediate(resolve));
+  elements.tabs.children[0].listeners.click({});
+  assert.equal(typeof elements.sync?.listeners.click,'function');
+  const pending=elements.sync.listeners.click();assert.equal(elements.sync.disabled,true);assert.equal(elements.sync.textContent,'正在同步…');
+  elements.sync.listeners.click();assert.equal(syncCalls,1);
+  rows=[{...rows[0],title:'New DOM'}];resolveSync({ok:true,captured:1,unavailable:2,skipped:3});await pending;
+  assert.equal(elements.sync.disabled,false);assert.equal(elements.sync.textContent,'同步已打开标签');
+  assert.equal(elements.tabs.children[0].children[0].children[0].checked,true);
+  assert.equal(elements.tabs.children[0].children[1].children[0].textContent,'New DOM');
+  assert.match(elements.notice.textContent,/成功 1.*无法读取 2.*跳过 3/);
+  fail=true;await elements.sync.listeners.click();assert.equal(elements.sync.disabled,false);assert.match(elements.notice.textContent,/同步失败/);
 });

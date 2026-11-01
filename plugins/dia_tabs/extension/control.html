@@ -10,7 +10,7 @@
   <main>
     <header>
       <div><p class="eyebrow">LIFE TOOLS · DIA</p><h1>网页标题与标签</h1></div>
-      <button id="refresh" type="button">刷新列表</button>
+      <div class="actions"><button id="sync" type="button">同步已打开标签</button><button id="refresh" type="button">刷新列表</button></div>
     </header>
     <p class="intro">记录页面原始标题。点击标题或网址，切换到已有标签。</p>
     <section class="bridge" aria-label="本机桥接状态">
@@ -30,7 +30,7 @@
       </table>
       <p id="empty" hidden>没有匹配的 HTTP/HTTPS 网页标签。</p>
     </div>
-    <p class="footnote">未访问的后台页面显示“待访问”；切换到该页面且加载完成后记录标题。隐私窗口不在列表内。</p>
+    <p class="footnote">后台页面可用“同步已打开标签”读取标题；加载中、已释放或冻结的页面会跳过，不切换或重载页面。隐私窗口不在列表内。</p>
     <p id="notice" role="status" aria-live="polite"></p>
   </main>
   <script type="module" src="control.js"></script>

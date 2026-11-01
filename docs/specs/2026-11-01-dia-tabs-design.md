@@ -40,9 +40,11 @@
 | 状态或事件 | 行为 |
 |---|---|
 | 打开的 HTTP/HTTPS 标签尚未被采集 | 显示“待访问”，保留 URL，可复制 URL、可激活 |
-| active 且 tab.status=complete | 在顶层 frame 读取 `document.title`、`location.href`、`document.readyState` |
+| 自动采集：active 且 tab.status=complete，未 discarded/frozen | 在顶层 frame 读取 `document.title`、`location.href`、`document.readyState` |
 | 初次启动、`onActivated`、`onUpdated` 的 complete/title 变化 | 满足上述条件时重新采集，不使用事件中的 title 值 |
-| 非 active 标签 | 不主动采集；保留其已采集且仍对应当前 URL 的标题 |
+| 非 active 标签 | 不自动采集；保留其已采集且仍对应当前 URL 的标题 |
+| 点击“同步已打开标签” | 手动读取当前 profile 全部 HTTP/HTTPS 已加载网页标题，包含后台标签；不切换、加载或重载页面 |
+| 手动同步遇到 loading/discarded/frozen | 跳过，保持页面状态；单次读取超过 5 秒也跳过 |
 | 加载开始或 URL 变化 | 立即作废旧标题，增加该 tab 的采集版本；禁止旧标题与新 URL 配对 |
 | SPA 改标题 | active 时由 `onUpdated` 的 title 变化触发重新读取 DOM |
 | SPA 改 URL | 作废旧标题，active 且 complete 时重新读取；后续 title 事件继续更新 |
@@ -60,7 +62,9 @@
 
 记录至少包含 `tabId, url, title, titleState`。列表输出额外包含实时 `windowId, index, active`。导航版本计数用于拒绝延迟返回，不必对外暴露。
 
-采集前记下 tabId、URL 和版本；异步脚本返回后重新 `tabs.get`，仅在标签仍存在、仍 active、仍 complete、版本和 URL 均相同、DOM readyState 为 complete 时接受。导航事件必须先同步使版本失效，再执行异步工作。关闭后的延迟响应不可重新插回缓存。缓存写入应串行或按 tab key 写，避免两个异步采集互相覆盖整张表。
+采集前记下 tabId、URL 和版本；异步脚本返回后重新 `tabs.get`，仅在标签仍存在、仍 active、仍 complete、未 discarded/frozen、版本和 URL 均相同、DOM readyState 为 complete 时接受。显式手动同步仅放宽 active 门槛，并在注入前再次读取实时标签状态；导航、关闭和更晚采样校验不变。导航事件必须先同步使版本失效，再执行异步工作。关闭后的延迟响应不可重新插回缓存。缓存写入应串行或按 tab key 写，避免两个异步采集互相覆盖整张表。
+
+手动同步最多并发 4 个实际未结束的脚本读取，重复请求复用同一批次。读取超过 5 秒结束等待并计为跳过；浏览器尚未结束的脚本继续占用额度，直到实际成功或失败，额度不足时其余页面计为跳过，防止超时累积无限注入。成功、无法读取、跳过数量来自本轮实际采集结果，不从历史缓存推算。
 
 service worker 的事件监听器在模块顶层同步注册。初始化载入 session 后，重新查询当前标签并清理不存在或 URL 不符的记录。不能只依赖 `onStartup`：休眠后重启 worker 同样要初始化。
 
@@ -73,6 +77,8 @@ service worker 的事件监听器在模块顶层同步注册。初始化载入 s
 激活顺序：验证 sessionId → `tabs.get(tabId)` → `tabs.update(tabId, {active:true})` → 用实时 windowId 调用 `windows.update(windowId, {focused:true})`。最小化窗口需要先恢复正常状态；已经最大化的窗口不要强行恢复。标签在列表显示后关闭时返回“标签已关闭”，不得通过打开 URL 兜底。移动窗口后使用新的 windowId。
 
 Native host 名称固定为 `com.mcoder2014.life_tools.dia_tabs`。协议使用 JSON，固定版本 `v:1` 和字符串请求 `id`。只接受 `list`、`activate` 两个操作，拒绝任意脚本和任意文件路径。控制页 runtime message 与 native 请求共用此协议。
+
+手动同步使用控制页专属 runtime 消息 `{type:"dia-tabs-sync"}`，只在验证扩展自身 sender 后处理，不加入 native/Alfred 协议；网站 content script 不可调用。
 
 ```json
 {"v":1,"id":"request-uuid","op":"list"}
@@ -92,6 +98,8 @@ socket 放在用户目录的私有短路径，例如 `~/.local/share/life-tools-
 控制页使用表格，列为选择框、网页标题、URL、状态/窗口和复制 URL 操作。标题和 URL 均可点击，按 tabId 精确激活已有标签；URL 使用链接样式按钮，或在 anchor 上 preventDefault，阻止浏览器默认导航和新建标签。整行作为选择区域：普通点击单选，Ctrl/Cmd 点击切换选择，Shift 点击选择当前显示顺序中的连续区间；带修饰键点击标题或 URL 仍只执行选择，不得激活目标标签。复制按钮阻止事件冒泡。
 
 提供“复制所选 URL”和“复制所选 Markdown”。按当前表格顺序输出，每项一行；不同 tab 即使同 URL 也保留为不同项。刷新时按 tabId 保留仍存在的选择，移除已关闭项。无已采集标题的条目使用 URL 作为 Markdown 文本，不把“待访问”写入结果。
+
+“同步已打开标签”按钮在执行期间禁用并显示忙碌状态，完成后显示本轮成功、无法读取和跳过数量，刷新列表并保留仍存在的选择；失败后恢复按钮并允许重试。
 
 Alfred keyword 为 `dia`，参数先识别 `list`，`dia list` 展示全部，`dia list <查询>` 按 title 和 URL 进行不区分大小写的过滤。无参数时返回可自动补全到 `dia list ` 的入口。使用 Script Filter JSON 的 `mods`：回车激活，Cmd+回车复制 URL，Alt+回车复制 Markdown。所有动作以 JSON 参数通过 argv 传递，不把 title/URL 插进 shell 代码。复制用 `/usr/bin/pbcopy` 的 stdin。
 

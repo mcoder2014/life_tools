@@ -2,7 +2,7 @@ import {updateSelection, retainSelection, selectedOutput} from './control-core.j
 
 const byId = id => document.getElementById(id);
 let tabs = [], selected = new Set(), anchor = null, sessionId = '', loading = false;
-let refreshQueued = false;
+let refreshQueued = false, syncing = false;
 
 function visibleTabs() {
   const query = byId('search').value.trim().toLocaleLowerCase();
@@ -84,6 +84,7 @@ async function bridge(reconnect = false) {
 
 async function refresh() {
   if (loading) { refreshQueued = true; return; }
+  const preserveNotice = syncing;
   loading = true;
   byId('refresh').disabled = true;
   try {
@@ -95,7 +96,7 @@ async function refresh() {
     selected = retainSelection(selected, tabs);
     if (!tabs.some(tab => tab.tabId === anchor)) anchor = null;
     if (changed) render();
-  } catch { byId('notice').textContent = '无法读取标签列表，请重新加载扩展后刷新本页。'; }
+  } catch { if (!preserveNotice && !syncing) byId('notice').textContent = '无法读取标签列表，请重新加载扩展后刷新本页。'; }
   finally {
     loading = false; byId('refresh').disabled = false;
     if (refreshQueued) { refreshQueued = false; refresh(); }
@@ -103,8 +104,28 @@ async function refresh() {
   await bridge();
 }
 
+async function syncOpenTabs() {
+  if (syncing) return;
+  syncing = true;
+  byId('sync').disabled = true;
+  byId('sync').textContent = '正在同步…';
+  byId('notice').textContent = '正在读取已加载网页的原始标题…';
+  try {
+    const result = await chrome.runtime.sendMessage({type: 'dia-tabs-sync'});
+    if (!result?.ok) throw Error('sync failed');
+    await refresh();
+    byId('notice').textContent = `同步完成：成功 ${result.captured} 个，无法读取 ${result.unavailable} 个，跳过 ${result.skipped} 个。`;
+  } catch { byId('notice').textContent = '同步失败，请稍后重试。'; }
+  finally {
+    syncing = false;
+    byId('sync').disabled = false;
+    byId('sync').textContent = '同步已打开标签';
+  }
+}
+
 byId('search').addEventListener('input', render);
 byId('refresh').addEventListener('click', refresh);
+byId('sync').addEventListener('click', syncOpenTabs);
 byId('reconnect').addEventListener('click', async () => { await bridge(true); setTimeout(() => bridge(), 500); });
 byId('copy-urls').addEventListener('click', () => copy(selectedOutput(visibleTabs(), selected, 'url')));
 byId('copy-markdown').addEventListener('click', () => copy(selectedOutput(visibleTabs(), selected, 'markdown')));

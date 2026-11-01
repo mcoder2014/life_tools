@@ -123,3 +123,102 @@ test('close during initial query cannot reinsert a stale restored record', async
   release([tab(1,{active:false})]);await s.ready;await s.idle();
   assert.equal(f.storage.diaTabsRecords[1],undefined);
 });
+
+test('explicit sync reads complete background pages without activating or waking skipped pages', async () => {
+  const f=fake([tab(1,{active:false}),tab(2,{active:false}),tab(3,{active:false,status:'loading'}),
+    tab(4,{active:false,discarded:true}),tab(5,{active:false,frozen:true}),tab(6,{incognito:true}),
+    tab(7,{url:'chrome://settings/'}),tab(8,{active:false})]);
+  const s=service(f.api);await s.ready;
+  assert.deepEqual(f.calls,[]);
+  f.api.tabs.reload=async()=>{throw Error('sync must not reload');};
+  f.api.tabs.create=async()=>{throw Error('sync must not open tabs');};
+  const execute=f.api.scripting.executeScript;
+  f.api.scripting.executeScript=async options=>{if(options.target.tabId===8)throw Error('restricted');return execute(options);};
+  assert.equal(typeof s.syncOpenTabs,'function');
+  assert.deepEqual(await s.syncOpenTabs(),{captured:2,unavailable:1,skipped:3});
+  const rows=await s.list();
+  assert.equal(rows.find(row=>row.tabId===1).title,'DOM 1');
+  assert.equal(rows.find(row=>row.tabId===8).titleState,'unavailable');
+  assert.deepEqual(f.calls.filter(call=>call[0]==='script').map(call=>call[1]).sort(),[1,2]);
+  assert.ok(f.calls.every(call=>call[0]==='script'));
+  f.api.tabs.onUpdated.emit(2,{title:'Renamed browser label'},f.current.get(2));await s.idle();
+  assert.equal(f.calls.filter(call=>call[0]==='script').length,2);
+  assert.equal((await s.handleRequest({v:1,id:'native-sync',op:'sync'})).error,'BAD_REQUEST');
+});
+
+test('sync shares one in-flight batch and never exceeds four simultaneous samples', async () => {
+  const f=fake(Array.from({length:9},(_,index)=>tab(index+1,{active:false})));
+  const s=service(f.api);await s.ready;
+  const waiting=[];let running=0,maximum=0,total=0;
+  f.api.scripting.executeScript=({target})=>new Promise(resolve=>{
+    running++;total++;maximum=Math.max(maximum,running);
+    waiting.push(()=>{running--;resolve([{frameId:0,result:{title:`Synced ${target.tabId}`,url:'https://example.com/',readyState:'complete'}}]);});
+  });
+  assert.equal(typeof s.syncOpenTabs,'function');
+  const first=s.syncOpenTabs(),second=s.syncOpenTabs();assert.equal(first,second);
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(running,4);
+  while(total<9 || waiting.length) {
+    for(const release of waiting.splice(0)) release();
+    await new Promise(resolve=>setImmediate(resolve));
+  }
+  assert.deepEqual(await first,{captured:9,unavailable:0,skipped:0});
+  assert.equal(maximum,4);assert.equal(total,9);
+});
+
+test('manual background results are rejected after navigation, close or a later automatic sample', async t => {
+  for(const change of ['navigation','close','newer']) await t.test(change,async()=>{
+    const f=fake([tab(1,{active:false})]);const s=service(f.api);await s.ready;let release;
+    f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
+    assert.equal(typeof s.syncOpenTabs,'function');const pending=s.syncOpenTabs();
+    await new Promise(resolve=>setImmediate(resolve));
+    if(change==='navigation') {
+      f.current.set(1,tab(1,{active:false,status:'loading'}));f.api.tabs.onUpdated.emit(1,{status:'loading'},f.current.get(1));
+    } else if(change==='close') {f.current.delete(1);f.api.tabs.onRemoved.emit(1);}
+    else {
+      f.api.scripting.executeScript=async()=>[{frameId:0,result:{title:'Newer DOM',url:'https://example.com/',readyState:'complete'}}];
+      f.current.set(1,tab(1));f.api.tabs.onUpdated.emit(1,{title:'browser label'},f.current.get(1));
+      await new Promise(resolve=>setImmediate(resolve));
+    }
+    release([{frameId:0,result:{title:'Stale manual title',url:'https://example.com/',readyState:'complete'}}]);
+    assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1});await s.idle();
+    assert.equal(f.storage.diaTabsRecords[1]?.title,change==='close'?undefined:change==='newer'?'Newer DOM':'');
+  });
+});
+
+test('sync rechecks discarded/frozen before injection and rejects a page frozen during sampling', async () => {
+  const f=fake([tab(1,{active:false}),tab(2,{active:false})]);const s=service(f.api);await s.ready;
+  const query=f.api.tabs.query;
+  f.api.tabs.query=async()=>{const snapshot=await query();f.current.set(1,tab(1,{active:false,discarded:true}));return snapshot;};
+  let scripts=0;
+  f.api.scripting.executeScript=async({target})=>{
+    scripts++;f.current.set(target.tabId,tab(target.tabId,{active:false,frozen:true}));
+    return [{frameId:0,result:{title:'Frozen result',url:'https://example.com/',readyState:'complete'}}];
+  };
+  assert.equal(typeof s.syncOpenTabs,'function');
+  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:2});assert.equal(scripts,1);
+});
+
+test('a stalled manual script times out as skipped and late execution cannot restore its result', async t => {
+  const f=fake([tab(1,{active:false})]);const s=service(f.api);await s.ready;
+  let release;f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
+  t.mock.timers.enable({apis:['setTimeout']});
+  assert.equal(typeof s.syncOpenTabs,'function');const pending=s.syncOpenTabs();
+  await new Promise(resolve=>setImmediate(resolve));t.mock.timers.tick(5000);
+  assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1});
+  release([{frameId:0,result:{title:'Too late',url:'https://example.com/',readyState:'complete'}}]);
+  await new Promise(resolve=>setImmediate(resolve));await s.idle();
+  assert.equal(f.storage.diaTabsRecords[1]?.title,'');
+});
+
+test('timed-out scripts keep the four execution slots across repeated sync batches', async t => {
+  const f=fake(Array.from({length:9},(_,index)=>tab(index+1,{active:false})));
+  const s=service(f.api);await s.ready;const release=[];let calls=0;
+  f.api.scripting.executeScript=()=>{calls++;return new Promise(resolve=>release.push(resolve));};
+  t.mock.timers.enable({apis:['setTimeout']});
+  const first=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,4);
+  t.mock.timers.tick(5000);await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,4);
+  assert.deepEqual(await first,{captured:0,unavailable:0,skipped:9});
+  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:9});assert.equal(calls,4);
+  for(const resolve of release)resolve([{frameId:0,result:{title:'Late',url:'https://example.com/',readyState:'complete'}}]);
+  await new Promise(resolve=>setImmediate(resolve));
+});

@@ -45,6 +45,12 @@ chrome.runtime.onMessage.addListener((request, sender, reply) => {
   // Content scripts can only notify. List/activation/bridge controls belong to
   // the extension's own page; website input cannot choose a tab ID to activate.
   if (!sender.url?.startsWith(chrome.runtime.getURL(''))) return false;
+  if (request?.type === 'dia-tabs-sync') {
+    service.syncOpenTabs().then(counts => reply({ok: true, ...counts})).catch(() => {
+      reply({ok: false, error: 'INTERNAL_ERROR', message: '同步失败，请稍后重试'});
+    });
+    return true;
+  }
   if (request?.type === 'dia-tabs-bridge-status' || request?.type === 'dia-tabs-reconnect') {
     if (request.type === 'dia-tabs-reconnect') connectBridge();
     reply({state: bridgeState, message: bridgeMessage});
