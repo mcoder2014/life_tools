@@ -20,6 +20,7 @@ workflow 文件：
 .github/workflows/swift-mac-app.yml
 .github/workflows/alfred-workflow.yml
 .github/workflows/ulanzi-command-executor.yml
+.github/workflows/dia-tabs.yml
 ```
 
 触发条件：
@@ -59,6 +60,8 @@ Go 测试由 `.github/workflows/go-test.yml` 单独执行，失败会阻塞 PR�
 
 `ulanzi-command-executor.yml` 使用 `macos-latest` runner，为插件改动提供快速测试和打包反馈。tag 发布时由 `release.yml` 的 `Build Ulanzi release asset` job 重新构建版本化安装包，并由统一的 publish job 写入 Release。
 
+`dia-tabs.yml` 独立在 macOS 验证 MV3 扩展 Node 测试、Python native/Alfred 协议测试、临时安装、shell/plist 和 zip；PR 上传 dry-run 包，`v*` tag 验证通过后由该 workflow 自己附加 3 个 Dia Tabs 资产。它不进入根目录 Go 构建或安装流程，也不改变 `release.yml`。
+
 ## 发布操作流程
 
 1. 先把发布相关 PR 合并到 `master`。
@@ -93,6 +96,9 @@ life_tools_alfred_remote_upload_<tag>.alfredworkflow
 life_tools_ulanzi_d200x_command_executor_<tag>.zip
 life_tools_interview_timer_macos_<tag>.zip
 life_tools_interview_timer_macos_<tag>.sha256
+life_tools_dia_tabs_extension_<tag>.zip
+life_tools_dia_tabs_<tag>.alfredworkflow
+life_tools_dia_tabs_source_<tag>.zip
 checksums.txt
 ```
 
@@ -133,6 +139,8 @@ InterviewTimer.app
 该包由 `gui/interview_timer/scripts/build_app.sh` 生成，当前不做代码签名和 notarization。macOS 首次打开时可能需要用户在系统安全设置中手动允许。
 
 Alfred 产物是可直接导入 Alfred 5 的 `life_tools_alfred_remote_upload_<tag>.alfredworkflow`。用户的 `hosts_json` 和 MRU 状态由 Alfred 及其 workflow data 目录管理，不进入发布包。
+
+Dia Tabs 产物包含解压扩展 zip、Alfred Workflow 和可移植 Python 源码安装包；运行时使用 Python 3.9+ 标准库，不是免依赖二进制。必须先将 native runtime 安装到稳定目录，再加载扩展和导入 Workflow。具体安装和原始网页标题语义见 [Dia Tabs 说明](plugins/dia_tabs.md)。这些由独立 workflow 上传的 3 个资产不属于 `release.yml` 生成的 `checksums.txt`。
 
 Ulanzi 产物 `life_tools_ulanzi_d200x_command_executor_<tag>.zip` 的最外层是 `com.ulanzi.commandexecutor.ulanziPlugin`，可按 [Ulanzi D200X 命令执行器安装说明](../plugins/unlanzi_d200x/docs/command-executor-installation.md) 解压到 Studio 插件目录。历史 Release 不会因 workflow 更新自动重建；只有包含该发布逻辑的新 tag 会自动附带此资产。
 

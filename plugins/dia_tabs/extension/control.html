@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dia 标签管理</title>
+  <link rel="stylesheet" href="control.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="app-header">
+      <div class="heading">
+        <p class="eyebrow"><span class="product-mark" aria-hidden="true"></span>DIA TABS</p>
+        <h1>标签管理</h1>
+        <p class="intro">查找、切换并复制当前浏览器中的网页标签。</p>
+      </div>
+      <div class="actions header-actions">
+        <button id="sync" class="primary-button" type="button" aria-busy="false">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.7 7A6 6 0 0 0 5.2 5.1L3.5 7M3.5 7V3.5M3.5 7H7M4.3 13a6 6 0 0 0 10.5 1.9l1.7-1.9m0 0v3.5m0-3.5H13"/></svg>
+          <span id="sync-label">同步已打开标签</span>
+        </button>
+        <button id="refresh" class="secondary-button" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8A5.5 5.5 0 1 0 16 12M15.5 8V4.5M15.5 8H12"/></svg>
+          刷新列表
+        </button>
+      </div>
+    </header>
+
+    <section class="bridge" aria-label="Alfred 连接状态">
+      <span id="bridge-status" class="connection-status">正在检查 Alfred 连接…</span>
+      <span class="muted bridge-note">连接供 Alfred 使用，不影响本页管理标签。</span>
+      <button id="reconnect" class="text-button" type="button">重新连接</button>
+      <span id="bridge-detail" class="bridge-detail" hidden></span>
+    </section>
+
+    <section class="workspace" aria-label="网页标签列表">
+      <div class="toolbar">
+        <label class="search">
+          <span class="field-label">筛选标签</span>
+          <span class="search-control">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 3.5 3.5"/></svg>
+            <input id="search" type="search" placeholder="搜索标题或网址" autocomplete="off">
+          </span>
+        </label>
+        <div class="actions copy-actions" aria-label="复制所选标签">
+          <button id="copy-urls" class="secondary-button" type="button" disabled>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="9" rx="2"/><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></svg>
+            复制 URL
+          </button>
+          <button id="copy-markdown" class="secondary-button" type="button" disabled>复制 Markdown</button>
+        </div>
+      </div>
+
+      <p id="notice" role="status" aria-live="polite"></p>
+      <div class="table-meta">
+        <span id="count" class="count">正在读取…</span>
+        <span class="selection-hint"><span>单击选择</span><kbd>⌘</kbd><span>/</span><kbd>Ctrl</kbd><span>切换</span><kbd>Shift</kbd><span>连选</span></span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="select-col"><input id="select-all" type="checkbox" aria-label="选择全部可见标签"></th><th>网页原始标题</th><th>网址</th><th class="state-col">状态 / 窗口</th><th class="copy-col">操作</th></tr></thead>
+          <tbody id="tabs"></tbody>
+        </table>
+        <p id="empty" hidden>没有匹配的网页标签。<span>仅显示 HTTP/HTTPS 页面，请尝试调整搜索词。</span></p>
+      </div>
+    </section>
+
+    <p class="footnote">同步会尝试读取已加载页面，包括浏览器标记冻结的页面，不切换或重载；加载中、已释放或尚未加载的页面会跳过。读取失败或超时会保留已有标题。隐私窗口不在列表内。</p>
+  </main>
+  <script type="module" src="control.js"></script>
+</body>
+</html>

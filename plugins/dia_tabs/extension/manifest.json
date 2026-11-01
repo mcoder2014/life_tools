@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Dia 网页标题与标签",
+  "version": "1.0.0",
+  "description": "保存真实网页标题，复制链接并准确切换已有 Dia 标签。",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt3Pu6Q6EcBBMliL6aT081/77X2xtlPUVbY58jCLM/BMycifEssxFe86XusGB6/gIbmcpBwKYSsMzDp7DgOTRtJa9Cwih15+HC4vCtYpVuxcAy2ZbmBwvRHhdAC2Q5X3zPysLqSSrnQ6QmdO/cpsiGU72Pg7MlqK5+8FHyD/sYeq/bbRXOuy5T7h9P7khJAMFq5JqPJ15o4eNIHPav2W7RzwNqerIyOm0/yZ37Q/TGdjZPQ97LRGbM5VcEDLZ53j4GNYRJJ7xbP227SAywnA1s+/7XMAAjz2eVvHifzDlWOvK74QoEWv8BfvOStZN83L2MqpAADXvcg9ZWt9R1b53EwIDAQAB",
+  "incognito": "not_allowed",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage",
+    "nativeMessaging",
+    "alarms",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "打开网页标题列表"
+  },
+  "options_page": "control.html"
+}

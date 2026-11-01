@@ -22,6 +22,7 @@
 - `cli/video_subtitle/`：单视频自动生成中文字幕工具，详细说明见 `docs/cli/video_subtitle.md`。
 - `emby_plugins/video_subtitle/`：Emby Server 插件，后端调用 `video_subtitle` 生成字幕，详细说明见 `docs/plugins/emby_video_subtitle.md`。
 - `plugins/alfred_remote_upload/`：Alfred 5 Workflow，将剪贴板中的图片或 Finder 单文件上传到 SSH 主机，详细说明见 `docs/plugins/alfred_remote_upload.md`。
+- `plugins/dia_tabs/`：Dia MV3 扩展、Python Native Messaging 桥接和 Alfred Workflow，独立构建/安装，说明见 `docs/plugins/dia_tabs.md`；修改时运行 Node/Python 测试、shell/plist 校验及 `plugins/dia_tabs/build.sh`，不进入 Go 构建，CI/3 个 tag 资产由 `.github/workflows/dia-tabs.yml` 管理。
 - `plugins/unlanzi_d200x/command_executor/`：Ulanzi D200X 命令执行器，源码、测试和构建入口均在该目录，文档索引见 `plugins/unlanzi_d200x/docs/README.md`。
 - `gui/interview_timer/`：macOS 面试悬浮计时 GUI 应用，说明见 `docs/gui/interview_timer.md`。
 - `docs/cli/`：CLI 工具文档。
