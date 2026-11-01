@@ -16,13 +16,14 @@ function fake(tabs, saved = {}) {
   const api = {
     tabs: {
       onUpdated:event(),onActivated:event(),onRemoved:event(),onReplaced:event(),onCreated:event(),
-      async query() {return [...current.values()].map(tab => ({...tab}));},
+      async query(query={}) {return [...current.values()].filter(tab=>(query.windowId===undefined || tab.windowId===query.windowId)
+        && (query.active===undefined || tab.active===query.active)).map(tab => ({...tab}));},
       async get(id) {if (!current.has(id)) throw Error('closed'); return {...current.get(id)};},
       async update(id, changes) {const tab=await this.get(id); current.set(id,{...tab,...changes}); calls.push(['tab',id,changes]); return current.get(id);},
     },
-    scripting: {async executeScript({target}) {calls.push(['script',target.tabId]);return [{frameId:0,result:{title:`DOM ${target.tabId}`,url:current.get(target.tabId)?.url,readyState:'complete'}}];}},
+    scripting: {async executeScript({target}) {calls.push(['script',target.tabId]);return [{frameId:0,result:{title:`DOM ${target.tabId}`,url:current.get(target.tabId)?.url,readyState:'complete',visibilityState:'visible'}}];}},
     storage:{session:{async get() {return structuredClone(storage);},async set(value) {Object.assign(storage,structuredClone(value));}}},
-    windows:{async get(id) {return {id,state:'minimized'};},async update(id,value) {calls.push(['window',id,value]);}},
+    windows:{onFocusChanged:event(),async get(id) {return {id,state:'minimized'};},async update(id,value) {calls.push(['window',id,value]);}},
   };
   return {api,current,calls,storage};
 }
@@ -399,4 +400,156 @@ test('a stale initial query cannot inject into a page suspended while the query 
   f.current.set(1,tab(1,{frozen:true}));f.api.tabs.onUpdated.emit(1,{frozen:true},f.current.get(1));
   release([tab(1)]);await s.ready;await s.idle();
   assert.equal(f.calls.length,0);assert.equal(f.storage.diaTabsRecords[1].title,'Saved DOM');
+});
+
+test('a frozen active page in the focused window can supply its visible DOM title', async () => {
+  const f=fake([tab(1,{frozen:true})]);f.api.windows.get=async id=>({id,focused:true});
+  const s=service(f.api);await s.ready;
+  const row=(await s.list())[0];
+  assert.equal(row.title,'DOM 1');assert.equal(row.titleState,'captured');assert.equal(row.frozen,true);
+  assert.deepEqual(f.calls,[['script',1]]);
+  const result=runInNewContext(`(${readPageTitle.toString()})()`,{
+    document:{head:null,title:'Visible DOM',readyState:'complete',visibilityState:'visible'},location:{href:'https://example.com/'},
+  });
+  assert.equal(result.visibilityState,'visible');
+});
+
+test('frozen probes require active complete non-discarded pages and an explicitly focused window', async t => {
+  for(const extra of [{active:false},{status:'loading'},{discarded:true},{incognito:true}]) await t.test(JSON.stringify(extra),async()=>{
+    const f=fake([tab(1,{frozen:true,...extra})]);f.api.windows.get=async id=>({id,focused:true});
+    const s=service(f.api);await s.ready;await s.list();await s.syncOpenTabs();
+    assert.deepEqual(f.calls,[]);
+  });
+  for(const focused of [false,undefined]) await t.test(`focused=${focused}`,async()=>{
+    const f=fake([tab(1,{frozen:true})]);f.api.windows.get=async id=>({id,focused});
+    const s=service(f.api);await s.ready;await s.list();await s.syncOpenTabs();
+    assert.deepEqual(f.calls,[]);
+  });
+});
+
+test('failed or hidden frozen probes retain the previously captured title', async t => {
+  for(const kind of ['reject','no-result','hidden','missing-visibility','loading','wrong-url','missing-title']) await t.test(kind,async()=>{
+    const saved={diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+    const f=fake([tab(1,{active:false,frozen:true})],saved);f.api.windows.get=async id=>({id,focused:true});
+    const s=service(f.api);await s.ready;let executions=0;
+    f.api.scripting.executeScript=async()=>{
+      executions++;if(kind==='reject')throw Error('restricted');if(kind==='no-result')return [];
+      return [{frameId:0,result:{title:kind==='missing-title'?undefined:'Probe DOM',
+        url:kind==='wrong-url'?'https://example.org/next':'https://example.com/',
+        readyState:kind==='loading'?'loading':'complete',visibilityState:kind==='hidden'?'hidden':kind==='missing-visibility'?undefined:'visible'}}];
+    };
+    f.current.set(1,tab(1,{frozen:true}));await s.refreshTab(1);
+    assert.equal(executions,1);assert.equal((await s.list())[0].title,'Saved DOM');
+    assert.equal(f.storage.diaTabsRecords[1].titleState,'captured');
+  });
+});
+
+test('frozen probes reject switching away, focus loss, navigation, closure and newer samples', async t => {
+  for(const change of ['inactive','focus','navigation','close','newer','switch-roundtrip','focus-roundtrip']) await t.test(change,async()=>{
+    const saved={diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+    const f=fake([tab(1,{active:false,frozen:true})],saved);let focused=true;
+    f.api.windows.get=async id=>({id,focused});const s=service(f.api);await s.ready;
+    let release;f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
+    f.current.set(1,tab(1,{frozen:true}));const pending=s.refreshTab(1);await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(typeof release,'function');
+    if(change==='inactive'||change==='switch-roundtrip') {
+      f.current.set(1,tab(1,{active:false,frozen:true}));f.api.tabs.onActivated.emit({tabId:2,windowId:1});
+      if(change==='switch-roundtrip') {f.current.set(1,tab(1,{frozen:true}));f.api.tabs.onActivated.emit({tabId:1,windowId:1});}
+    } else if(change==='focus'||change==='focus-roundtrip') {
+      focused=false;f.api.windows.onFocusChanged.emit(-1);
+      if(change==='focus-roundtrip') {focused=true;f.api.windows.onFocusChanged.emit(1);}
+    } else if(change==='navigation') {
+      f.current.set(1,tab(1,{active:false,frozen:true,url:'https://example.org/next'}));
+      f.api.tabs.onUpdated.emit(1,{url:f.current.get(1).url},f.current.get(1));
+    } else if(change==='close') {f.current.delete(1);f.api.tabs.onRemoved.emit(1);}
+    else {
+      f.api.scripting.executeScript=async()=>[{frameId:0,result:{title:'Newer DOM',url:'https://example.com/',readyState:'complete'}}];
+      f.current.set(1,tab(1,{frozen:false}));await s.refreshTab(1);
+    }
+    await new Promise(resolve=>setImmediate(resolve));
+    release([{frameId:0,result:{title:'Old probe DOM',url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}]);
+    await pending;await s.idle();
+    assert.equal(f.storage.diaTabsRecords[1]?.title,change==='close'?undefined:change==='navigation'?'':change==='newer'?'Newer DOM':'Saved DOM');
+  });
+});
+
+test('a stalled frozen probe bounds ready to five seconds and late results only release its slot', async t => {
+  const saved={diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+  const f=fake([tab(1,{frozen:true})],saved);f.api.windows.get=async id=>({id,focused:true});
+  let release,executions=0;f.api.scripting.executeScript=()=>{executions++;return new Promise(resolve=>{release=resolve;});};
+  t.mock.timers.enable({apis:['setTimeout']});
+  const s=service(f.api);let ready=false;s.ready.then(()=>{ready=true;});await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(executions,1);assert.equal(ready,false);
+  t.mock.timers.tick(5000);await s.ready;await s.idle();assert.equal(ready,true);
+  assert.equal((await s.list())[0].title,'Saved DOM');
+  await s.refreshTab(1);assert.equal(executions,1);
+  release([{frameId:0,result:{title:'Too late',url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}]);
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(f.storage.diaTabsRecords[1].title,'Saved DOM');
+  f.api.scripting.executeScript=async()=>{executions++;return [{frameId:0,result:{title:'Fresh DOM',url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}];};
+  await s.refreshTab(1);assert.equal(executions,2);assert.equal((await s.list())[0].title,'Fresh DOM');
+});
+
+test('repeated lists share a frozen tab execution without invalidating its sample', async () => {
+  const f=fake([tab(1,{active:false,frozen:true})]);f.api.windows.get=async id=>({id,focused:true});
+  const s=service(f.api);await s.ready;let release,executions=0;
+  f.api.scripting.executeScript=()=>{executions++;return new Promise(resolve=>{release=resolve;});};
+  f.current.set(1,tab(1,{frozen:true}));const first=s.list();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(executions,1);
+  await Promise.all([s.list(),s.list(),s.refreshTab(1)]);assert.equal(executions,1);
+  release([{frameId:0,result:{title:'Shared DOM',url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}]);
+  assert.equal((await first)[0].title,'Shared DOM');await s.idle();
+});
+
+test('manual reads and parallel frozen probes share at most four actual executions', async () => {
+  const f=fake(Array.from({length:6},(_,i)=>tab(i+1,{active:false,windowId:i+1,frozen:i>=4})));
+  f.api.windows.get=async id=>({id,focused:true});const s=service(f.api);await s.ready;
+  const releases=new Map();let executions=0,running=0,maximum=0;
+  f.api.scripting.executeScript=({target})=>{executions++;running++;maximum=Math.max(maximum,running);return new Promise(resolve=>{
+    releases.set(target.tabId,()=>{running--;resolve([{frameId:0,result:{title:`Read ${target.tabId}`,url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}]);});
+  });};
+  const manual=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));assert.equal(executions,4);
+  f.current.set(5,tab(5,{windowId:5,frozen:true}));f.current.set(6,tab(6,{windowId:6,frozen:true}));
+  await Promise.all([s.refreshTab(5),s.refreshTab(6)]);assert.equal(executions,4);
+  releases.get(1)();await new Promise(resolve=>setImmediate(resolve));
+  const probe=s.refreshTab(5);await new Promise(resolve=>setImmediate(resolve));assert.equal(executions,5);
+  await s.refreshTab(6);assert.equal(executions,5);
+  for(const [id,release]of releases)if(id!==1)release();await manual;await probe;await s.idle();
+  assert.equal(maximum,4);assert.equal(f.storage.diaTabsRecords[5].title,'Read 5');
+});
+
+test('concurrent frozen probes recheck shared capacity after asynchronous window checks', async () => {
+  const f=fake(Array.from({length:7},(_,i)=>tab(i+1,{windowId:i+1,active:false,frozen:true})));
+  f.api.windows.get=async id=>({id,focused:true});const s=service(f.api);await s.ready;
+  const gates=[],releases=[];let executions=0;
+  f.api.windows.get=id=>new Promise(resolve=>gates.push(()=>resolve({id,focused:true})));
+  f.api.scripting.executeScript=()=>{executions++;return new Promise(resolve=>releases.push(resolve));};
+  for(const [id,current]of f.current)f.current.set(id,{...current,active:true});
+  const pending=[...f.current.keys()].map(id=>s.refreshTab(id));await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(gates.length,7);for(const release of gates.splice(0))release();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(executions,4);
+  f.api.windows.get=async id=>({id,focused:true});
+  for(let i=0;i<releases.length;i++)releases[i]([{frameId:0,result:{title:'Bounded DOM',url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}]);
+  await Promise.all(pending);await s.idle();
+});
+
+test('window focus changes refresh the active frozen page in that window only', async () => {
+  const f=fake([tab(1,{windowId:1,frozen:true}),tab(2,{windowId:2,frozen:true}),tab(3,{windowId:2,active:false,frozen:true})]);let focusedWindow=-1;
+  f.api.windows.get=async id=>({id,focused:id===focusedWindow});const s=service(f.api);await s.ready;
+  assert.deepEqual(f.calls,[]);focusedWindow=2;f.api.windows.onFocusChanged.emit(2);await s.idle();
+  assert.deepEqual(f.calls,[['script',2]]);assert.equal(f.storage.diaTabsRecords[2].title,'DOM 2');
+});
+
+test('a frozen probe rejects a focus roundtrip during its final window check after execution settled', async () => {
+  const saved={diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+  const f=fake([tab(1,{active:false,frozen:true})],saved);const s=service(f.api);await s.ready;
+  let checks=0,release;
+  f.api.windows.get=id=>{
+    checks++;if(checks===2)return new Promise(resolve=>{release=()=>resolve({id,focused:true});});
+    return Promise.resolve({id,focused:checks===1});
+  };
+  f.current.set(1,tab(1,{frozen:true}));const pending=s.refreshTab(1);await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(checks,2);
+  f.api.windows.onFocusChanged.emit(-1);f.api.windows.onFocusChanged.emit(1);
+  await new Promise(resolve=>setImmediate(resolve));release();await pending;await s.idle();
+  assert.equal(f.storage.diaTabsRecords[1].title,'Saved DOM');
 });

@@ -26,15 +26,15 @@ export function readPageTitle() {
     observer.observe(document.head, {subtree: true, childList: true, characterData: true});
     globalThis[key] = observer;
   }
-  return {title: document.title, url: location.href, readyState: document.readyState};
+  return {title: document.title, url: location.href, readyState: document.readyState, visibilityState: document.visibilityState};
 }
 
 // Session state stays in one worker. Navigation invalidation is synchronous;
 // every asynchronous result is checked against both navigation and sample IDs.
 export function createTabService(api) {
   const records = new Map(), versions = new Map(), samples = new Map(), tasks = new Set(), initialRemovals = new Set();
-  const pendingManual = new Set(), initialUpdates = [];
-  let sessionId, initialized = false, writeTail = Promise.resolve(), syncPromise = null;
+  const pendingReads = new Map(), initialUpdates = [];
+  let sessionId, initialized = false, writeTail = Promise.resolve(), syncPromise = null, probeEpoch = 0;
   const persist = () => {
     writeTail = writeTail.catch(() => {}).then(() => api.storage.session.set({
       diaTabsSession: sessionId, diaTabsRecords: Object.fromEntries(records),
@@ -62,47 +62,72 @@ export function createTabService(api) {
     if (urlChanged || loading || suspended)
       invalidate(id, url, !urlChanged && suspended && record?.titleState === 'captured');
   };
+  // Manual reads and foreground probes share actual execution slots. A timeout
+  // ends the wait, but only the browser settling the execution releases its slot.
+  const executeTitle = async (tab, bounded) => {
+    let timeout;
+    try {
+      const execution = api.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, func: readPageTitle});
+      if (bounded) {
+        pendingReads.set(tab.id, execution);
+        execution.then(() => pendingReads.delete(tab.id), () => pendingReads.delete(tab.id));
+      }
+      const results = bounded ? await Promise.race([execution, new Promise(resolve => {
+        timeout = setTimeout(() => resolve(null), 5000);
+      })]) : await execution;
+      return results === null ? {error: 'timeout'} : {page: results.find(result => result.frameId === 0)?.result};
+    } catch { return {error: 'unavailable'}; }
+    finally { clearTimeout(timeout); }
+  };
   const capture = async (tab, {allowBackground = false} = {}) => {
     if (!isWeb(tab)) return 'unsupported';
     if (!allowBackground && !tab.active) return 'inactive';
     if (tab.discarded) return 'discarded';
-    if (tab.frozen) return 'frozen';
+    const foregroundProbe = tab.frozen === true && tab.active;
+    if (tab.frozen && !foregroundProbe) return 'frozen';
     if (tab.status !== 'complete') return tab.status === 'loading' ? 'loading' : tab.status === 'unloaded' ? 'unloaded' : 'unknown_status';
-    const version = versions.get(tab.id) || 0, sample = (samples.get(tab.id) || 0) + 1;
-    samples.set(tab.id, sample);
+    const bounded = allowBackground || foregroundProbe;
+    if (bounded && (pendingReads.has(tab.id) || pendingReads.size >= 4)) return 'capacity';
+    const version = versions.get(tab.id) || 0, previousSample = samples.get(tab.id) || 0, epoch = probeEpoch;
     // A queued manual sample must not inject into a tab discarded/frozen since
-    // the batch snapshot. No activation, reload or other wake-up is attempted.
-    if (allowBackground) {
+    // the batch snapshot. Only an already active, focused page may probe a
+    // possibly stale frozen flag; no activation, reload or wake-up is requested.
+    if (bounded) {
       let current;
       try { current = await api.tabs.get(tab.id); } catch { return 'closed'; }
       if (current.discarded) return 'discarded';
-      if (current.frozen) return 'frozen';
-      if (!isWeb(current) || current.url !== tab.url || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'stale';
-      if (current.status !== 'complete') return current.status === 'loading' ? 'loading' : current.status === 'unloaded' ? 'unloaded' : 'unknown_status';
-    }
-    let page, timeout;
-    try {
-      if (allowBackground && pendingManual.size >= 4) return 'capacity';
-      const execution = api.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, func: readPageTitle});
-      if (allowBackground) {
-        pendingManual.add(execution);
-        execution.then(() => pendingManual.delete(execution), () => pendingManual.delete(execution));
+      if (current.frozen && !foregroundProbe) return 'frozen';
+      if (foregroundProbe) {
+        if (!current.active) return 'inactive';
+        try { if ((await api.windows.get(current.windowId)).focused !== true) return 'frozen'; }
+        catch { return 'frozen'; }
       }
-      const results = allowBackground ? await Promise.race([execution, new Promise(resolve => {
-        timeout = setTimeout(() => resolve(null), 5000);
-      })]) : await execution;
-      if (results === null) return 'timeout';
-      page = results.find(result => result.frameId === 0)?.result;
-    } catch { /* Restricted pages remain visible with an explicit unavailable state. */ }
-    finally { clearTimeout(timeout); }
+      if (!isWeb(current) || current.url !== tab.url || (versions.get(tab.id) || 0) !== version
+        || (samples.get(tab.id) || 0) !== previousSample || (foregroundProbe && probeEpoch !== epoch)) return 'stale';
+      if (current.status !== 'complete') return current.status === 'loading' ? 'loading' : current.status === 'unloaded' ? 'unloaded' : 'unknown_status';
+      tab = current;
+    }
+    // Recheck after async gates and before changing sample IDs: duplicate list
+    // requests must neither overbook slots nor invalidate the original probe.
+    if (bounded && (pendingReads.has(tab.id) || pendingReads.size >= 4)) return 'capacity';
+    const sample = (samples.get(tab.id) || 0) + 1;
+    samples.set(tab.id, sample);
+    const {page, error} = await executeTitle(tab, bounded);
+    if (error === 'timeout') return 'timeout';
     let current;
     try { current = await api.tabs.get(tab.id); } catch { return 'closed'; }
     if (current.discarded) return 'discarded';
-    if (current.frozen) return 'frozen';
+    if (current.frozen && !foregroundProbe) return 'frozen';
+    if (foregroundProbe) {
+      if (!current.active) return 'inactive';
+      try { if ((await api.windows.get(current.windowId)).focused !== true) return 'frozen'; }
+      catch { return 'frozen'; }
+    }
     if (!isWeb(current) || current.url !== tab.url || (versions.get(tab.id) || 0) !== version || samples.get(tab.id) !== sample) return 'stale';
     if (!allowBackground && !current.active) return 'inactive';
     if (current.status !== 'complete') return current.status === 'loading' ? 'loading' : current.status === 'unloaded' ? 'unloaded' : 'unknown_status';
     if (page && (page.url !== tab.url || page.readyState !== 'complete')) return 'stale';
+    if (foregroundProbe && (probeEpoch !== epoch || page?.visibilityState !== 'visible' || typeof page?.title !== 'string')) return 'stale';
     records.set(tab.id, {url: tab.url, title: typeof page?.title === 'string' ? page.title : '',
       titleState: typeof page?.title === 'string' ? 'captured' : 'unavailable'});
     persist();
@@ -145,7 +170,15 @@ export function createTabService(api) {
     if (change.status === 'complete' || Object.hasOwn(change, 'title') || Object.hasOwn(change, 'url')
       || change.frozen === false || change.discarded === false) refreshTab(id);
   });
-  api.tabs.onActivated.addListener(({tabId}) => { refreshTab(tabId); });
+  api.tabs.onActivated.addListener(({tabId}) => { probeEpoch++; refreshTab(tabId); });
+  api.windows.onFocusChanged.addListener(windowId => {
+    probeEpoch++;
+    if (windowId < 0) return;
+    track(ready.then(async () => {
+      const tabs = await api.tabs.query({windowId, active: true});
+      await Promise.all(tabs.map(tab => refreshTab(tab.id)));
+    }).catch(() => {}));
+  });
   api.tabs.onCreated.addListener(tab => { refreshTab(tab.id); });
   api.tabs.onRemoved.addListener(id => { if (!initialized) initialRemovals.add(id); invalidate(id); });
   api.tabs.onReplaced.addListener((added, removed) => {
