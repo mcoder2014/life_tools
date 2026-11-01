@@ -164,18 +164,18 @@ test('explicit sync reads complete background pages without activating or waking
   const execute=f.api.scripting.executeScript;
   f.api.scripting.executeScript=async options=>{if(options.target.tabId===8)throw Error('restricted');return execute(options);};
   assert.equal(typeof s.syncOpenTabs,'function');
-  assert.deepEqual(await s.syncOpenTabs(),{captured:2,unavailable:1,skipped:3,skipReasons:{loading:1,discarded:1,frozen:1}});
+  assert.deepEqual(await s.syncOpenTabs(),{captured:3,unavailable:1,skipped:2,skipReasons:{loading:1,discarded:1}});
   const rows=await s.list();
   assert.equal(rows.find(row=>row.tabId===1).title,'DOM 1');
   assert.equal(rows.find(row=>row.tabId===8).titleState,'unavailable');
-  assert.deepEqual(f.calls.filter(call=>call[0]==='script').map(call=>call[1]).sort(),[1,2]);
+  assert.deepEqual(f.calls.filter(call=>call[0]==='script').map(call=>call[1]).sort(),[1,2,5]);
   assert.ok(f.calls.every(call=>call[0]==='script'));
   f.api.tabs.onUpdated.emit(2,{title:'Renamed browser label'},f.current.get(2));await s.idle();
-  assert.equal(f.calls.filter(call=>call[0]==='script').length,2);
+  assert.equal(f.calls.filter(call=>call[0]==='script').length,3);
   assert.equal((await s.handleRequest({v:1,id:'native-sync',op:'sync'})).error,'BAD_REQUEST');
 });
 
-test('sync shares one in-flight batch and never exceeds four simultaneous samples', async () => {
+test('sync shares one in-flight batch and never exceeds three simultaneous samples', async () => {
   const f=fake(Array.from({length:9},(_,index)=>tab(index+1,{active:false})));
   const s=service(f.api);await s.ready;
   const waiting=[];let running=0,maximum=0,total=0;
@@ -185,13 +185,13 @@ test('sync shares one in-flight batch and never exceeds four simultaneous sample
   });
   assert.equal(typeof s.syncOpenTabs,'function');
   const first=s.syncOpenTabs(),second=s.syncOpenTabs();assert.equal(first,second);
-  await new Promise(resolve=>setImmediate(resolve));assert.equal(running,4);
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(running,3);
   while(total<9 || waiting.length) {
     for(const release of waiting.splice(0)) release();
     await new Promise(resolve=>setImmediate(resolve));
   }
   assert.deepEqual(await first,{captured:9,unavailable:0,skipped:0,skipReasons:{}});
-  assert.equal(maximum,4);assert.equal(total,9);
+  assert.equal(maximum,3);assert.equal(total,9);
 });
 
 test('manual background results are rejected after navigation, close or a later automatic sample', async t => {
@@ -214,7 +214,7 @@ test('manual background results are rejected after navigation, close or a later 
   });
 });
 
-test('sync rechecks discarded/frozen before injection and rejects a page frozen during sampling', async () => {
+test('sync rechecks discarded before injection and accepts a frozen flag without a lifecycle event', async () => {
   const f=fake([tab(1,{active:false}),tab(2,{active:false})]);const s=service(f.api);await s.ready;
   const query=f.api.tabs.query;
   f.api.tabs.query=async()=>{const snapshot=await query();f.current.set(1,tab(1,{active:false,discarded:true}));return snapshot;};
@@ -224,11 +224,12 @@ test('sync rechecks discarded/frozen before injection and rejects a page frozen 
     return [{frameId:0,result:{title:'Frozen result',url:'https://example.com/',readyState:'complete'}}];
   };
   assert.equal(typeof s.syncOpenTabs,'function');
-  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:2,skipReasons:{discarded:1,frozen:1}});assert.equal(scripts,1);
+  assert.deepEqual(await s.syncOpenTabs(),{captured:1,unavailable:0,skipped:1,skipReasons:{discarded:1}});assert.equal(scripts,1);
 });
 
-test('a stalled manual script times out as skipped and late execution cannot restore its result', async t => {
-  const f=fake([tab(1,{active:false})]);const s=service(f.api);await s.ready;
+test('a stalled frozen manual script times out without replacing the saved title', async t => {
+  const saved={diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+  const f=fake([tab(1,{active:false,frozen:true})],saved);const s=service(f.api);await s.ready;
   let release;f.api.scripting.executeScript=()=>new Promise(resolve=>{release=resolve;});
   t.mock.timers.enable({apis:['setTimeout']});
   assert.equal(typeof s.syncOpenTabs,'function');const pending=s.syncOpenTabs();
@@ -236,18 +237,18 @@ test('a stalled manual script times out as skipped and late execution cannot res
   assert.deepEqual(await pending,{captured:0,unavailable:0,skipped:1,skipReasons:{timeout:1}});
   release([{frameId:0,result:{title:'Too late',url:'https://example.com/',readyState:'complete'}}]);
   await new Promise(resolve=>setImmediate(resolve));await s.idle();
-  assert.equal(f.storage.diaTabsRecords[1]?.title,'');
+  assert.equal(f.storage.diaTabsRecords[1]?.title,'Saved DOM');
 });
 
-test('timed-out scripts keep the four execution slots across repeated sync batches', async t => {
-  const f=fake(Array.from({length:9},(_,index)=>tab(index+1,{active:false})));
+test('timed-out frozen scripts keep the three manual execution slots across repeated sync batches', async t => {
+  const f=fake(Array.from({length:9},(_,index)=>tab(index+1,{active:false,frozen:true})));
   const s=service(f.api);await s.ready;const release=[];let calls=0;
   f.api.scripting.executeScript=()=>{calls++;return new Promise(resolve=>release.push(resolve));};
   t.mock.timers.enable({apis:['setTimeout']});
-  const first=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,4);
-  t.mock.timers.tick(5000);await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,4);
-  assert.deepEqual(await first,{captured:0,unavailable:0,skipped:9,skipReasons:{timeout:4,capacity:5}});
-  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:9,skipReasons:{capacity:9}});assert.equal(calls,4);
+  const first=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,3);
+  t.mock.timers.tick(5000);await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,3);
+  assert.deepEqual(await first,{captured:0,unavailable:0,skipped:9,skipReasons:{timeout:3,capacity:6}});
+  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:9,skipReasons:{capacity:9}});assert.equal(calls,3);
   for(const resolve of release)resolve([{frameId:0,result:{title:'Late',url:'https://example.com/',readyState:'complete'}}]);
   await new Promise(resolve=>setImmediate(resolve));
 });
@@ -259,8 +260,8 @@ test('list exposes live diagnostic fields and sync prioritizes discarded over un
   const rows=await s.list();
   assert.equal(rows[0].status,'unloaded');assert.equal(rows[0].discarded,true);
   assert.equal(rows[1].status,'unknown');assert.equal(rows[1].discarded,null);assert.equal(rows[1].frozen,null);
-  assert.deepEqual((await s.syncOpenTabs()).skipReasons,{discarded:1,unknown_status:1,loading:1,frozen:1,unloaded:1});
-  assert.equal(f.calls.length,0);
+  assert.deepEqual((await s.syncOpenTabs()).skipReasons,{discarded:1,unknown_status:1,loading:1,unloaded:1});
+  assert.equal(f.calls.length,1);
 });
 
 test('active pages are sampled after unfreezing or restoration, but inactive pages are not', async t => {
@@ -414,15 +415,15 @@ test('a frozen active page in the focused window can supply its visible DOM titl
   assert.equal(result.visibilityState,'visible');
 });
 
-test('frozen probes require active complete non-discarded pages and an explicitly focused window', async t => {
+test('automatic frozen probes require active complete non-discarded pages and an explicitly focused window', async t => {
   for(const extra of [{active:false},{status:'loading'},{discarded:true},{incognito:true}]) await t.test(JSON.stringify(extra),async()=>{
     const f=fake([tab(1,{frozen:true,...extra})]);f.api.windows.get=async id=>({id,focused:true});
-    const s=service(f.api);await s.ready;await s.list();await s.syncOpenTabs();
+    const s=service(f.api);await s.ready;await s.list();
     assert.deepEqual(f.calls,[]);
   });
   for(const focused of [false,undefined]) await t.test(`focused=${focused}`,async()=>{
     const f=fake([tab(1,{frozen:true})]);f.api.windows.get=async id=>({id,focused});
-    const s=service(f.api);await s.ready;await s.list();await s.syncOpenTabs();
+    const s=service(f.api);await s.ready;await s.list();
     assert.deepEqual(f.calls,[]);
   });
 });
@@ -500,21 +501,25 @@ test('repeated lists share a frozen tab execution without invalidating its sampl
   assert.equal((await first)[0].title,'Shared DOM');await s.idle();
 });
 
-test('manual reads and parallel frozen probes share at most four actual executions', async () => {
-  const f=fake(Array.from({length:6},(_,i)=>tab(i+1,{active:false,windowId:i+1,frozen:i>=4})));
+test('three stalled manual reads leave one foreground probe slot and release capacity only when settled', async t => {
+  const f=fake(Array.from({length:9},(_,i)=>tab(i+1,{active:false,frozen:true})));
   f.api.windows.get=async id=>({id,focused:true});const s=service(f.api);await s.ready;
-  const releases=new Map();let executions=0,running=0,maximum=0;
-  f.api.scripting.executeScript=({target})=>{executions++;running++;maximum=Math.max(maximum,running);return new Promise(resolve=>{
-    releases.set(target.tabId,()=>{running--;resolve([{frameId:0,result:{title:`Read ${target.tabId}`,url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}]);});
-  });};
-  const manual=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));assert.equal(executions,4);
-  f.current.set(5,tab(5,{windowId:5,frozen:true}));f.current.set(6,tab(6,{windowId:6,frozen:true}));
-  await Promise.all([s.refreshTab(5),s.refreshTab(6)]);assert.equal(executions,4);
-  releases.get(1)();await new Promise(resolve=>setImmediate(resolve));
-  const probe=s.refreshTab(5);await new Promise(resolve=>setImmediate(resolve));assert.equal(executions,5);
-  await s.refreshTab(6);assert.equal(executions,5);
-  for(const [id,release]of releases)if(id!==1)release();await manual;await probe;await s.idle();
-  assert.equal(maximum,4);assert.equal(f.storage.diaTabsRecords[5].title,'Read 5');
+  const releases=[];let executions=0,running=0,maximum=0,recovered=false;
+  f.api.scripting.executeScript=({target})=>{
+    executions++;running++;maximum=Math.max(maximum,running);
+    const result=[{frameId:0,result:{title:`Read ${target.tabId}`,url:'https://example.com/',readyState:'complete',visibilityState:'visible'}}];
+    if(recovered || target.tabId===10) {running--;return Promise.resolve(result);}
+    return new Promise(resolve=>releases.push(()=>{running--;resolve(result);}));
+  };
+  t.mock.timers.enable({apis:['setTimeout']});
+  const manual=s.syncOpenTabs();await new Promise(resolve=>setImmediate(resolve));assert.equal(executions,3);
+  t.mock.timers.tick(5000);await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(await manual,{captured:0,unavailable:0,skipped:9,skipReasons:{timeout:3,capacity:6}});
+  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:9,skipReasons:{capacity:9}});assert.equal(executions,3);
+  f.current.set(10,tab(10,{frozen:true}));await s.refreshTab(10);
+  assert.equal(f.storage.diaTabsRecords[10].title,'Read 10');assert.equal(executions,4);assert.equal(maximum,4);
+  for(const release of releases)release();await new Promise(resolve=>setImmediate(resolve));recovered=true;
+  assert.deepEqual(await s.syncOpenTabs(),{captured:10,unavailable:0,skipped:0,skipReasons:{}});assert.equal(maximum,4);
 });
 
 test('concurrent frozen probes recheck shared capacity after asynchronous window checks', async () => {
@@ -552,4 +557,54 @@ test('a frozen probe rejects a focus roundtrip during its final window check aft
   f.api.windows.onFocusChanged.emit(-1);f.api.windows.onFocusChanged.emit(1);
   await new Promise(resolve=>setImmediate(resolve));release();await pending;await s.idle();
   assert.equal(f.storage.diaTabsRecords[1].title,'Saved DOM');
+});
+
+test('manual sync reads hidden frozen background pages and unfocused active pages without automatic capture', async () => {
+  const f=fake([tab(1,{active:false,frozen:true}),tab(2,{windowId:2,frozen:true})]);
+  f.api.windows.get=async id=>({id,focused:false});const s=service(f.api);await s.ready;
+  await s.refreshTab(1);await s.refreshTab(2);assert.deepEqual(f.calls,[]);
+  f.api.windows.get=async()=>{throw Error('manual sync must not require a focused window');};
+  f.api.scripting.executeScript=async({target})=>{f.calls.push(['script',target.tabId]);return [{frameId:0,result:{
+    title:`Hidden DOM ${target.tabId}`,url:'https://example.com/',readyState:'complete',visibilityState:'hidden'}}];};
+  assert.deepEqual(await s.syncOpenTabs(),{captured:2,unavailable:0,skipped:0,skipReasons:{}});
+  assert.deepEqual(f.calls,[['script',1],['script',2]]);
+  assert.deepEqual((await s.list()).map(row=>row.title),['Hidden DOM 1','Hidden DOM 2']);
+});
+
+test('manual frozen reads allow reported flags and focus changes but reject actual lifecycle events', async t => {
+  for(const change of ['pre-flag','post-flag','focus-event','freeze-event']) await t.test(change,async()=>{
+    const saved={diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+    const f=fake([tab(1,{active:false})],saved);const s=service(f.api);await s.ready;let executions=0;
+    if(change==='pre-flag') {
+      const query=f.api.tabs.query;f.api.tabs.query=async()=>{const snapshot=await query();f.current.set(1,tab(1,{active:false,frozen:true}));return snapshot;};
+    }
+    f.api.scripting.executeScript=async()=>{
+      executions++;f.current.set(1,tab(1,{active:false,frozen:true}));
+      if(change==='focus-event')f.api.windows.onFocusChanged.emit(-1);
+      if(change==='freeze-event')f.api.tabs.onUpdated.emit(1,{frozen:true},f.current.get(1));
+      return [{frameId:0,result:{title:'Hidden DOM',url:'https://example.com/',readyState:'complete',visibilityState:'hidden'}}];
+    };
+    assert.deepEqual(await s.syncOpenTabs(),change==='freeze-event'?{captured:0,unavailable:0,skipped:1,skipReasons:{stale:1}}:{captured:1,unavailable:0,skipped:0,skipReasons:{}});
+    await s.idle();assert.equal(executions,1);assert.equal(f.storage.diaTabsRecords[1].title,change==='freeze-event'?'Saved DOM':'Hidden DOM');
+  });
+});
+
+test('manual frozen sync still skips discarded, loading and unloaded pages without injection', async () => {
+  const f=fake([tab(1,{active:false,frozen:true,discarded:true}),tab(2,{active:false,frozen:true,status:'loading'}),tab(3,{active:false,frozen:true,status:'unloaded'})]);
+  const s=service(f.api);await s.ready;
+  assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:3,skipReasons:{discarded:1,loading:1,unloaded:1}});
+  assert.deepEqual(f.calls,[]);
+});
+
+test('failed manual reads count unavailable without replacing a captured title for the same URL', async t => {
+  for(const [kind,frozen]of [['reject',true],['no-frame',true],['missing-title',true],['reject',false]]) await t.test(`${kind}, frozen=${frozen}`,async()=>{
+    const saved={diaTabsRecords:{1:{url:'https://example.com/',title:'Saved DOM',titleState:'captured'}}};
+    const f=fake([tab(1,{active:false,frozen})],saved);const s=service(f.api);await s.ready;let executions=0;
+    f.api.scripting.executeScript=async()=>{
+      executions++;if(kind==='reject')throw Error('restricted');if(kind==='no-frame')return [];
+      return [{frameId:0,result:{url:'https://example.com/',readyState:'complete',visibilityState:'hidden'}}];
+    };
+    assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:1,skipped:0,skipReasons:{}});
+    await s.idle();assert.equal(executions,1);assert.deepEqual(f.storage.diaTabsRecords[1],saved.diaTabsRecords[1]);
+  });
 });

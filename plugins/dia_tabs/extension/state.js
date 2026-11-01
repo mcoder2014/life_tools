@@ -83,20 +83,21 @@ export function createTabService(api) {
     if (!isWeb(tab)) return 'unsupported';
     if (!allowBackground && !tab.active) return 'inactive';
     if (tab.discarded) return 'discarded';
-    const foregroundProbe = tab.frozen === true && tab.active;
-    if (tab.frozen && !foregroundProbe) return 'frozen';
+    const foregroundProbe = !allowBackground && tab.frozen === true && tab.active;
+    if (tab.frozen && !allowBackground && !foregroundProbe) return 'frozen';
     if (tab.status !== 'complete') return tab.status === 'loading' ? 'loading' : tab.status === 'unloaded' ? 'unloaded' : 'unknown_status';
-    const bounded = allowBackground || foregroundProbe;
-    if (bounded && (pendingReads.has(tab.id) || pendingReads.size >= 4)) return 'capacity';
+    // Reserve one of the four bounded execution slots for automatic foreground probes.
+    const bounded = allowBackground || foregroundProbe, readLimit = allowBackground ? 3 : 4;
+    if (bounded && (pendingReads.has(tab.id) || pendingReads.size >= readLimit)) return 'capacity';
     const version = versions.get(tab.id) || 0, previousSample = samples.get(tab.id) || 0, epoch = probeEpoch;
-    // A queued manual sample must not inject into a tab discarded/frozen since
-    // the batch snapshot. Only an already active, focused page may probe a
-    // possibly stale frozen flag; no activation, reload or wake-up is requested.
+    // Manual sync also attempts pages reported frozen, but never discarded
+    // pages. Automatic frozen probes still require an active, focused page.
+    // No activation or reload is requested.
     if (bounded) {
       let current;
       try { current = await api.tabs.get(tab.id); } catch { return 'closed'; }
       if (current.discarded) return 'discarded';
-      if (current.frozen && !foregroundProbe) return 'frozen';
+      if (current.frozen && !allowBackground && !foregroundProbe) return 'frozen';
       if (foregroundProbe) {
         if (!current.active) return 'inactive';
         try { if ((await api.windows.get(current.windowId)).focused !== true) return 'frozen'; }
@@ -109,7 +110,7 @@ export function createTabService(api) {
     }
     // Recheck after async gates and before changing sample IDs: duplicate list
     // requests must neither overbook slots nor invalidate the original probe.
-    if (bounded && (pendingReads.has(tab.id) || pendingReads.size >= 4)) return 'capacity';
+    if (bounded && (pendingReads.has(tab.id) || pendingReads.size >= readLimit)) return 'capacity';
     const sample = (samples.get(tab.id) || 0) + 1;
     samples.set(tab.id, sample);
     const {page, error} = await executeTitle(tab, bounded);
@@ -117,7 +118,7 @@ export function createTabService(api) {
     let current;
     try { current = await api.tabs.get(tab.id); } catch { return 'closed'; }
     if (current.discarded) return 'discarded';
-    if (current.frozen && !foregroundProbe) return 'frozen';
+    if (current.frozen && !allowBackground && !foregroundProbe) return 'frozen';
     if (foregroundProbe) {
       if (!current.active) return 'inactive';
       try { if ((await api.windows.get(current.windowId)).focused !== true) return 'frozen'; }
@@ -128,6 +129,8 @@ export function createTabService(api) {
     if (current.status !== 'complete') return current.status === 'loading' ? 'loading' : current.status === 'unloaded' ? 'unloaded' : 'unknown_status';
     if (page && (page.url !== tab.url || page.readyState !== 'complete')) return 'stale';
     if (foregroundProbe && (probeEpoch !== epoch || page?.visibilityState !== 'visible' || typeof page?.title !== 'string')) return 'stale';
+    const record = records.get(tab.id);
+    if (allowBackground && typeof page?.title !== 'string' && record?.url === tab.url && record.titleState === 'captured') return 'unavailable';
     records.set(tab.id, {url: tab.url, title: typeof page?.title === 'string' ? page.title : '',
       titleState: typeof page?.title === 'string' ? 'captured' : 'unavailable'});
     persist();
@@ -210,7 +213,7 @@ export function createTabService(api) {
       const tabs = (await api.tabs.query({})).filter(isWeb);
       const counts = {captured: 0, unavailable: 0, skipped: 0, skipReasons: {}};
       let next = 0;
-      await Promise.all(Array.from({length: Math.min(4, tabs.length)}, async () => {
+      await Promise.all(Array.from({length: Math.min(3, tabs.length)}, async () => {
         while (next < tabs.length) {
           const result = await capture(tabs[next++], {allowBackground: true});
           if (result === 'captured' || result === 'unavailable') counts[result]++;
