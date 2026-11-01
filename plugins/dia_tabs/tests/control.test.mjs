@@ -134,12 +134,13 @@ test('sync button shows counts, preserves selection, ignores repeat clicks and r
   assert.equal(typeof elements.sync?.listeners.click,'function');
   const pending=elements.sync.listeners.click();assert.equal(elements.sync.disabled,true);assert.equal(elements['sync-label'].textContent,'正在同步…');
   elements.sync.listeners.click();assert.equal(syncCalls,1);
-  rows=[{...rows[0],title:'New DOM'}];resolveSync({ok:true,captured:1,unavailable:2,skipped:3,skipReasons:{discarded:1,frozen:1,unknown_status:1}});await pending;
+  rows=[{...rows[0],title:'New DOM'}];resolveSync({ok:true,captured:1,unavailable:2,skipped:4,skipReasons:{discarded:1,frozen:1,unknown_status:1,title_regression:1}});await pending;
   assert.equal(elements.sync.disabled,false);assert.equal(elements['sync-label'].textContent,'同步已打开标签');
   assert.equal(elements.tabs.children[0].children[0].children[0].checked,true);
   assert.equal(elements.tabs.children[0].children[1].children[0].textContent,'New DOM');
-  assert.match(elements.notice.textContent,/成功 1.*无法读取 2.*跳过 3.*已释放 1.*状态未知 1/);
+  assert.match(elements.notice.textContent,/成功 1.*无法读取 2.*跳过 4.*已释放 1.*状态未知 1/);
   assert.match(elements.notice.textContent,/浏览器标记冻结 1 个/);
+  assert.match(elements.notice.textContent,/标题退化，已保留 1 个/);
   for (const [status, frozen, expected] of [['complete',true,'浏览器标记冻结'],['loading',false,'加载中'],['unloaded',false,'尚未加载'],['unknown',false,'状态未知']]) {
     rows=[{...rows[0],discarded:false,frozen,status}];
     await elements.refresh.listeners.click();

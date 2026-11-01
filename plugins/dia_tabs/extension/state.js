@@ -1,5 +1,22 @@
 const isWeb = tab => !tab.incognito && /^https?:\/\//i.test(tab.url || '');
 
+function isDomainTitle(title, url) {
+  let hostname;
+  try { hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, ''); }
+  catch { return false; }
+  const value = title.trim().toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  if (!value) return false;
+  if (value === hostname) return true;
+  // IP and IDN hosts only match as a whole; DNS fragments use complete labels.
+  if (hostname.includes(':') || /^\d+(\.\d+){3}$/.test(hostname) || /(^|\.)xn--/.test(hostname)) return false;
+  const labels = hostname.split('.'), parts = value.split('.');
+  if (parts.length === 1) {
+    if (value.length < 3 || !/[a-z]/.test(value) || value === 'www') return false;
+    return labels.slice(0, -1).includes(value);
+  }
+  return labels.some((_, index) => labels.slice(index, index + parts.length).join('.') === value);
+}
+
 // Only this injected function reads page content. The observer sends a signal;
 // the worker checks active/complete again before each subsequent title read.
 export function readPageTitle() {
@@ -131,6 +148,8 @@ export function createTabService(api) {
     if (foregroundProbe && (probeEpoch !== epoch || page?.visibilityState !== 'visible' || typeof page?.title !== 'string')) return 'stale';
     const record = records.get(tab.id);
     if (allowBackground && typeof page?.title !== 'string' && record?.url === tab.url && record.titleState === 'captured') return 'unavailable';
+    if (record?.url === tab.url && record.titleState === 'captured' && record.title.trim() && typeof page?.title === 'string'
+      && isDomainTitle(page.title, tab.url) && !isDomainTitle(record.title, tab.url)) return 'title_regression';
     records.set(tab.id, {url: tab.url, title: typeof page?.title === 'string' ? page.title : '',
       titleState: typeof page?.title === 'string' ? 'captured' : 'unavailable'});
     persist();

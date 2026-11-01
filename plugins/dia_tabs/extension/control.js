@@ -142,7 +142,7 @@ async function syncOpenTabs() {
     const result = await chrome.runtime.sendMessage({type: 'dia-tabs-sync'});
     if (!result?.ok) throw Error('sync failed');
     await refresh();
-    const labels = {discarded: '已释放', frozen: '浏览器标记冻结', loading: '加载中', unloaded: '尚未加载', unknown_status: '状态未知', stale: '页面已变化', closed: '已关闭', timeout: '读取超时', capacity: '先前读取尚未结束'};
+    const labels = {discarded: '已释放', frozen: '浏览器标记冻结', loading: '加载中', unloaded: '尚未加载', unknown_status: '状态未知', stale: '页面已变化', closed: '已关闭', timeout: '读取超时', capacity: '先前读取尚未结束', title_regression: '标题退化，已保留'};
     const reasons = Object.entries(result.skipReasons || {}).map(([reason, count]) => `${labels[reason] || '其他'} ${count} 个`).join('，');
     notify(`同步完成：成功 ${result.captured} 个，无法读取 ${result.unavailable} 个，跳过 ${result.skipped} 个${reasons ? `（${reasons}）` : ''}。`, 'success');
   } catch { notify('同步失败，请稍后重试。', 'error'); }

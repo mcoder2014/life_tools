@@ -7,6 +7,7 @@
 <p>初始 document.title 为 <code>Dia Tabs Demo Alpha</code>。可在 Dia 手动重命名标签，随后测试扩展仍读取网页标题。</p>
 <button id="arm-background" type="button">离开本页时修改标题</button>
 <button id="change" type="button">修改网页标题</button><button id="reset" type="button">恢复初始标题</button>
+<button id="domain-title" type="button">改成域名标题</button>
 <p>点击“离开本页时修改标题”后切到扩展控制页，离开约 1 秒后再点同步，标题应变为 Dia Tabs Background Sync Proof。</p>
 <p id="current">当前网页标题：Dia Tabs Demo Alpha</p>
 <p><a href="beta.html" target="_blank" rel="noopener">打开 Beta 新标签</a><a href="alpha.html" target="_blank" rel="noopener">打开同 URL 的 Alpha 副本</a><a href="alpha.html">同 URL 重新加载</a></p>
@@ -27,5 +28,6 @@ document.getElementById('arm-background').addEventListener('click', () => {
 function setTitle(value) { document.title=value; document.getElementById('current').textContent='当前网页标题：'+value; }
 document.getElementById('change').addEventListener('click',()=>setTitle('Alpha [changed] 中文'));
 document.getElementById('reset').addEventListener('click',()=>setTitle('Dia Tabs Demo Alpha'));
+document.getElementById('domain-title').addEventListener('click',()=>setTitle(location.hostname));
 </script>
 </body></html>

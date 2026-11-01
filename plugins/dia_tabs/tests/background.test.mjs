@@ -608,3 +608,68 @@ test('failed manual reads count unavailable without replacing a captured title f
     await s.idle();assert.equal(executions,1);assert.deepEqual(f.storage.diaTabsRecords[1],saved.diaTabsRecords[1]);
   });
 });
+
+test('specific captured titles resist domain replacements in automatic and manual frozen paths', async t => {
+  for(const mode of ['auto','auto-frozen','manual','manual-frozen']) await t.test(mode,async()=>{
+    const url='https://tenant.example.com/',title='Design review notes';
+    const f=fake([tab(1,{url,active:false,frozen:mode.endsWith('frozen')})],{diaTabsRecords:{1:{url,title,titleState:'captured'}}});
+    f.api.windows.get=async id=>({id,focused:true});const s=service(f.api);await s.ready;
+    f.api.scripting.executeScript=async()=>[{frameId:0,result:{title:'tenant.example.com',url,readyState:'complete',visibilityState:'visible'}}];
+    if(mode.startsWith('auto')) {f.current.set(1,{...f.current.get(1),active:true});await s.refreshTab(1);}
+    else assert.deepEqual(await s.syncOpenTabs(),{captured:0,unavailable:0,skipped:1,skipReasons:{title_regression:1}});
+    await s.idle();assert.equal(f.storage.diaTabsRecords[1].title,title);
+  });
+});
+
+test('domain-title protection matches complete DNS labels and avoids arbitrary fragments, IP and IDN splits', async t => {
+  const cases=[
+    ['tenant.example.com',' TENANT.EXAMPLE.COM. ',true],['tenant.example.com','www.tenant.example.com',true],
+    ['tenant.example.com','tenant',true],['tenant.example.com','example',true],
+    ['tenant.example.com','tenant.example',true],['tenant.example.com','example.com',true],
+    ['www.tenant.example.com.','tenant.example.com',true],
+    ['sometime.tenant.example.com','Time',false],['tenant.example.com','ten',false],
+    ['tenant.example.com','ample',false],['tenant.example.com','com',false],
+    ['ww.tenant.example.com','ww',false],['123.tenant.example.com','123',false],
+    ['tenant.www.example.com','www',false],['tenant.example.com','tenant.com',false],
+    ['tenant.example.com','https://tenant.example.com',false],['tenant.example.com','tenant.example.com:443',false],
+    ['tenant.example.com','tenant.example.com/path',false],
+    ['127.0.0.1','127.0.0.1',true],['127.0.0.1','127',false],['127.0.0.1','0.0.1',false],
+    ['[2001:db8::1]','[2001:db8::1]',true],['[2001:db8::1]','db8',false],
+    ['tenant.xn--fsqu00a.xn--0zwm56d','tenant.xn--fsqu00a.xn--0zwm56d',true],
+    ['tenant.xn--fsqu00a.xn--0zwm56d','tenant',false],
+    ['tenant.xn--fsqu00a.xn--0zwm56d','xn--fsqu00a.xn--0zwm56d',false],
+  ];
+  for(const [host,next,blocked]of cases) await t.test(`${host} -> ${next}`,async()=>{
+    const url=`https://${host}/`,title='Project overview';
+    const f=fake([tab(1,{url,active:false})],{diaTabsRecords:{1:{url,title,titleState:'captured'}}});const s=service(f.api);await s.ready;
+    f.api.scripting.executeScript=async()=>[{frameId:0,result:{title:next,url,readyState:'complete'}}];
+    assert.deepEqual(await s.syncOpenTabs(),blocked?{captured:0,unavailable:0,skipped:1,skipReasons:{title_regression:1}}:{captured:1,unavailable:0,skipped:0,skipReasons:{}});
+    await s.idle();assert.equal(f.storage.diaTabsRecords[1].title,blocked?title:next);
+  });
+});
+
+test('initial domain titles, empty captured titles and upgrades to specific titles remain allowed', async t => {
+  for(const [before,next]of [[null,'tenant.example.com'],['','tenant.example.com'],['tenant.example.com','Project notes'],['example','tenant.example.com']]) await t.test(`${before} -> ${next}`,async()=>{
+    const url='https://tenant.example.com/';
+    const f=fake([tab(1,{url,active:false})],before===null?{}:{diaTabsRecords:{1:{url,title:before,titleState:'captured'}}});
+    const s=service(f.api);await s.ready;
+    f.api.scripting.executeScript=async()=>[{frameId:0,result:{title:next,url,readyState:'complete'}}];
+    assert.deepEqual(await s.syncOpenTabs(),{captured:1,unavailable:0,skipped:0,skipReasons:{}});
+    await s.idle();assert.equal(f.storage.diaTabsRecords[1].title,next);
+  });
+});
+
+test('domain-title protection does not cross a real URL navigation or same-URL reload', async t => {
+  for(const reload of [false,true]) await t.test(`reload=${reload}`,async()=>{
+    const url='https://tenant.example.com/';
+    const f=fake([tab(1,{url,active:false})],{diaTabsRecords:{1:{url,title:'Project notes',titleState:'captured'}}});
+    const s=service(f.api);await s.ready;
+    f.current.set(1,tab(1,{url:reload?url:`${url}next`,active:false,status:'loading'}));
+    f.api.tabs.onUpdated.emit(1,reload?{status:'loading'}:{url:f.current.get(1).url,status:'loading'},f.current.get(1));
+    assert.equal((await s.list())[0].titleState,'pending');
+    f.current.set(1,{...f.current.get(1),status:'complete'});f.api.tabs.onUpdated.emit(1,{status:'complete'},f.current.get(1));
+    f.api.scripting.executeScript=async()=>[{frameId:0,result:{title:'tenant.example.com',url:f.current.get(1).url,readyState:'complete'}}];
+    assert.deepEqual(await s.syncOpenTabs(),{captured:1,unavailable:0,skipped:0,skipReasons:{}});
+    await s.idle();assert.equal(f.storage.diaTabsRecords[1].title,'tenant.example.com');
+  });
+});
